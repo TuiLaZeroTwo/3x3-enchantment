@@ -11,6 +11,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import tlz.hisamc.hisaecm.HisaECM;
 import tlz.hisamc.hisaecm.gui.EnchantMenu;
+import tlz.hisamc.hisaecm.gui.MainMenu;
 import tlz.hisamc.hisaecm.gui.ShopMenu;
 
 import java.util.ArrayList;
@@ -27,30 +28,32 @@ public class HisaCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         
-        // Default /hisaecm -> Show Help
+        // --- NO ARGS: Open Main Menu ---
         if (args.length == 0) {
-            sendHelp(sender);
+            if (sender instanceof Player player) {
+                MainMenu.open(player);
+            } else {
+                sender.sendMessage(Component.text("Console cannot open GUI.", NamedTextColor.RED));
+            }
             return true;
         }
 
         String sub = args[0].toLowerCase();
 
+        // Subcommands (Shortcuts)
         if (sub.equals("enchant")) {
-            if (sender instanceof Player player) {
-                EnchantMenu.open(player);
-            } else {
-                sender.sendMessage(Component.text("Console cannot open GUI.", NamedTextColor.RED));
-            }
+            if (sender instanceof Player player) EnchantMenu.open(player);
             return true;
         }
 
         if (sub.equals("shop")) {
-            if (sender instanceof Player player) {
-                ShopMenu.open(player);
-            } else {
-                sender.sendMessage(Component.text("Console cannot open GUI.", NamedTextColor.RED));
-            }
+            if (sender instanceof Player player) ShopMenu.open(player);
             return true;
+        }
+        
+        if (sub.equals("show")) { // Explicit "Show" command if user wants it
+             if (sender instanceof Player player) MainMenu.open(player);
+             return true;
         }
 
         if (sub.equals("reload")) {
@@ -63,17 +66,8 @@ public class HisaCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        sendHelp(sender);
+        sender.sendMessage(Component.text("Unknown command. Try /hisaecm", NamedTextColor.RED));
         return true;
-    }
-
-    private void sendHelp(CommandSender sender) {
-        sender.sendMessage(Component.text("--- Hisa-ECM Help ---", NamedTextColor.GOLD));
-        sender.sendMessage(Component.text("/hisaecm enchant", NamedTextColor.YELLOW).append(Component.text(" - Open Enchant GUI", NamedTextColor.GRAY)));
-        sender.sendMessage(Component.text("/hisaecm shop", NamedTextColor.YELLOW).append(Component.text(" - Open Item Shop", NamedTextColor.GRAY)));
-        if (sender.hasPermission("hisaecm.admin")) {
-            sender.sendMessage(Component.text("/hisaecm reload", NamedTextColor.RED).append(Component.text(" - Reload Config", NamedTextColor.GRAY)));
-        }
     }
 
     @Override
@@ -82,6 +76,7 @@ public class HisaCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             list.add("enchant");
             list.add("shop");
+            list.add("show");
             if (sender.hasPermission("hisaecm.admin")) list.add("reload");
         }
         return list;

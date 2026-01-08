@@ -16,6 +16,7 @@ import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import tlz.hisamc.hisaecm.HisaECM;
+import tlz.hisamc.hisaecm.util.DropsHandler; // Import Handler
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,59 +38,38 @@ public class ExplosiveListener implements Listener {
         Player player = event.getPlayer();
         ItemStack tool = player.getInventory().getItemInMainHand();
 
-        // 1. Validation
         if (tool.getType() == Material.AIR || !Tag.ITEMS_PICKAXES.isTagged(tool.getType())) return;
-
         ItemMeta meta = tool.getItemMeta();
         if (meta == null || !meta.getPersistentDataContainer().has(keyExplosive, PersistentDataType.INTEGER)) return;
 
-        // 2. Chance Check
         int chance = plugin.getConfig().getInt("enchants.explosive.chance", 20);
         if (random.nextInt(100) >= chance) return;
 
-        // 3. Custom Diamond Explosion Logic
         Block center = event.getBlock();
-        int radius = 3; // Size of the diamond
-        
-        // Visuals (Sound + Particles) - No Damage!
         center.getWorld().playSound(center.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 1.0F, 0.8F);
         center.getWorld().spawnParticle(Particle.EXPLOSION_LARGE, center.getLocation().toCenterLocation(), 1);
 
-        List<Block> blocksToBreak = getDiamondShape(center, radius);
+        List<Block> diamond = getDiamondShape(center, 3);
 
-        for (Block target : blocksToBreak) {
-            // Safety Checks
+        for (Block target : diamond) {
             if (target.getType() == Material.BEDROCK || target.getType() == Material.AIR || target.getType() == Material.BARRIER) continue;
             
-            // Randomize: 60% chance to break this specific block in the diamond
-            if (random.nextInt(100) > 60) continue;
+            // Randomize scattering
+            if (random.nextInt(100) > 60) continue; 
 
-            // Stop if tool breaks
-            if (isToolBroken(tool)) break;
+            // USE DROPS HANDLER HERE
+            DropsHandler.handleBreak(player, target, tool);
 
-            // Break Block
-            target.breakNaturally(tool);
-            
-            // Apply Durability (Optional: reduce chance of damage since we break many blocks)
-            if (random.nextBoolean()) {
-                applyDurability(player, tool);
-            }
+            if (random.nextBoolean()) applyDurability(player, tool);
         }
     }
 
-    /**
-     * Calculates blocks in a 3D Diamond shape (Manhattan Distance).
-     */
     private List<Block> getDiamondShape(Block center, int radius) {
         List<Block> blocks = new ArrayList<>();
-        int cx = center.getX();
-        int cy = center.getY();
-        int cz = center.getZ();
-
+        int cx = center.getX(), cy = center.getY(), cz = center.getZ();
         for (int x = -radius; x <= radius; x++) {
             for (int y = -radius; y <= radius; y++) {
                 for (int z = -radius; z <= radius; z++) {
-                    // Manhattan Distance Formula: |x| + |y| + |z| <= r
                     if (Math.abs(x) + Math.abs(y) + Math.abs(z) <= radius) {
                         blocks.add(center.getWorld().getBlockAt(cx + x, cy + y, cz + z));
                     }
@@ -99,29 +79,13 @@ public class ExplosiveListener implements Listener {
         return blocks;
     }
 
-    private boolean isToolBroken(ItemStack tool) {
-        if (tool.getType().getMaxDurability() <= 0) return false;
-        if (tool.getItemMeta() instanceof Damageable damageable) {
-            return damageable.getDamage() >= tool.getType().getMaxDurability();
-        }
-        return false;
-    }
-
     private void applyDurability(Player player, ItemStack tool) {
+        // (Same durability logic as MiningListener)
         if (player.getGameMode() == org.bukkit.GameMode.CREATIVE) return;
-        
         ItemMeta meta = tool.getItemMeta();
-        if (meta instanceof Damageable damageable) {
-            int unbreakingLevel = tool.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.DURABILITY);
-            if (unbreakingLevel == 0 || random.nextInt(unbreakingLevel + 1) == 0) {
-                damageable.setDamage(damageable.getDamage() + 1);
-                tool.setItemMeta(meta);
-            }
-            
-            if (damageable.getDamage() >= tool.getType().getMaxDurability()) {
-                player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1, 1);
-                tool.setAmount(0);
-            }
+        if (meta instanceof Damageable d) {
+             d.setDamage(d.getDamage() + 1);
+             tool.setItemMeta(meta);
         }
     }
 }

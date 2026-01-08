@@ -10,9 +10,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockDropItemEvent;
+import org.bukkit.inventory.FurnaceRecipe;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.Recipe;
-import org.bukkit.inventory.FurnaceRecipe;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import tlz.hisamc.hisaecm.HisaECM;
@@ -44,38 +44,30 @@ public class DropsListener implements Listener {
 
         if (!hasSmelt && !hasTele) return;
 
-        // Iterate through drops
         for (Item itemEntity : event.getItems()) {
             ItemStack stack = itemEntity.getItemStack();
 
-            // --- 1. Auto Smelt Logic ---
+            // Auto Smelt
             if (hasSmelt) {
                 ItemStack smelted = getSmeltedResult(stack);
                 if (smelted != null) {
-                    stack = smelted; // Replace with smelted version
-                    itemEntity.setItemStack(stack); // Update entity
+                    stack = smelted;
+                    itemEntity.setItemStack(stack);
                 }
             }
 
-            // --- 2. Telekinesis Logic ---
+            // Telekinesis
             if (hasTele) {
-                // Try adding to inventory
                 Map<Integer, ItemStack> leftover = player.getInventory().addItem(stack);
-                
                 if (leftover.isEmpty()) {
-                    // Fully added to inventory, remove from ground
-                    itemEntity.remove();
+                    itemEntity.remove(); // All went to inv
                 } else {
-                    // Inventory full, update entity to show only leftovers
-                    itemEntity.setItemStack(leftover.get(0));
+                    itemEntity.setItemStack(leftover.get(0)); // Drop leftover
                 }
             }
         }
     }
 
-    /**
-     * checks Bukkit recipes to find what this item smelts into.
-     */
     private ItemStack getSmeltedResult(ItemStack source) {
         Iterator<Recipe> iter = Bukkit.recipeIterator();
         while (iter.hasNext()) {

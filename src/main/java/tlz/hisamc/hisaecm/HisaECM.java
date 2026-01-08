@@ -21,29 +21,27 @@ public final class HisaECM extends JavaPlugin {
 
         getCommand("hisaecm").setExecutor(new HisaCommand(this));
 
-        // Initialize Listeners
-        boosterListener = new CropBoosterListener(this); // Now handles saving/loading
+        boosterListener = new CropBoosterListener(this);
         
         var pm = getServer().getPluginManager();
+        pm.registerEvents(new MainMenuListener(this), this); // NEW
         pm.registerEvents(new MenuListener(this), this);
         pm.registerEvents(new ShopListener(this), this);
+        pm.registerEvents(new BoosterGuiListener(this, boosterListener), this);
         pm.registerEvents(boosterListener, this);
         
         pm.registerEvents(new MiningListener(this), this);
         pm.registerEvents(new ExplosiveListener(this), this);
         pm.registerEvents(new VeinMiningListener(this), this);
-        
         pm.registerEvents(new HasteListener(this), this);
         pm.registerEvents(new DropsListener(this), this);
 
-        getLogger().info("Hisa-ECM enabled! Boosters set to " + getConfig().getInt("shop.crop-booster.duration-seconds") + "s.");
+        getLogger().info("Hisa-ECM enabled with Main Menu GUI!");
     }
 
     @Override
     public void onDisable() {
-        if (boosterListener != null) {
-            boosterListener.saveBoosters(); // Save data on stop
-        }
+        if (boosterListener != null) boosterListener.saveBoosters();
     }
 
     public static HisaECM getInstance() { return instance; }

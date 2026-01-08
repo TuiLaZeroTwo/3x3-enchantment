@@ -51,7 +51,6 @@ public class MenuListener implements Listener {
         event.setCancelled(true);
 
         if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) return;
-
         Player player = (Player) event.getWhoClicked();
         ItemStack heldItem = player.getInventory().getItemInMainHand();
 
@@ -62,22 +61,22 @@ public class MenuListener implements Listener {
 
         int slot = event.getSlot();
 
-        // 3x3 Mining -> Conflicts with Explosive & Vein
+        // --- GROUP A: Mining Modes (Mutually Exclusive) ---
+        // 3x3 Mining -> Conflicts with Explosive & Vein Miner
         if (slot == 10) buyEnchant(player, heldItem, key3x3, "miner-3x3", keyExplosive, keyVein);
         
-        // Explosive -> Conflicts with 3x3 & Vein
+        // Explosive -> Conflicts with 3x3 & Vein Miner
         else if (slot == 12) buyEnchant(player, heldItem, keyExplosive, "explosive", key3x3, keyVein);
         
         // Vein Miner -> Conflicts with 3x3 & Explosive
         else if (slot == 16) buyEnchant(player, heldItem, keyVein, "vein-miner", key3x3, keyExplosive);
-        
-        // Others (No conflicts)
+
+        // --- GROUP B: Passives (Compatible with everything) ---
         else if (slot == 14) buyEnchant(player, heldItem, keyHaste, "haste");
         else if (slot == 28) buyEnchant(player, heldItem, keySmelt, "auto-smelt");
         else if (slot == 30) buyEnchant(player, heldItem, keyTele, "telekinesis");
     }
 
-    // Updated to accept multiple conflict keys (Varargs)
     private void buyEnchant(Player player, ItemStack item, NamespacedKey key, String configName, NamespacedKey... conflicts) {
         FileConfiguration config = plugin.getConfig();
         int price = config.getInt("enchants." + configName + ".price");
@@ -95,7 +94,7 @@ public class MenuListener implements Listener {
         // 2. Check Conflicts
         for (NamespacedKey conflict : conflicts) {
             if (container.has(conflict, PersistentDataType.INTEGER)) {
-                player.sendMessage(Component.text("This enchant conflicts with your current mining mode!", NamedTextColor.RED));
+                player.sendMessage(Component.text("This conflicts with your current mining enchant!", NamedTextColor.RED));
                 player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1, 1);
                 return;
             }
@@ -107,9 +106,9 @@ public class MenuListener implements Listener {
             return;
         }
 
-        // 4. Execute
         takeShards(player, price);
 
+        // 4. Apply
         container.set(key, PersistentDataType.INTEGER, 1);
         List<Component> lore = meta.lore();
         if (lore == null) lore = new ArrayList<>();
