@@ -33,4 +33,12 @@ shop:
     price: 15000
     description: "Boosts crops for 4 hours!"
     material: BEACON
-    duration-seconds: 14400 # 4 Hours (4 * 60 * 60)
+    duration-seconds: 14400
+    multiplier: 2.5
+  
+  # NEW ITEM
+  harvester-hoe:
+    name: "Harvester Hoe"
+    price: 10000
+    description: "Auto-replants crops and collects drops."
+    material: DIAMOND_HOE

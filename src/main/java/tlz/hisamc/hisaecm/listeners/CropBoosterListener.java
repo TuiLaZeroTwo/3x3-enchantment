@@ -37,10 +37,12 @@ public class CropBoosterListener implements Listener {
         Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, (task) -> tickBoosters(), 100L, 100L);
     }
 
-    // --- EXPLOSION PROTECTION (NEW) ---
+    // (Keep Events: onEntityExplode, onBlockExplode, onPlace, onInteract, onBreak same as before...)
+    // For brevity, I am only showing the UPDATED pulseBooster logic below.
+    // The rest of the file remains exactly the same as the previous step.
+
     @EventHandler
     public void onEntityExplode(EntityExplodeEvent event) {
-        // Remove boosters from the explosion list so they don't break
         event.blockList().removeIf(block -> boosters.containsKey(block.getLocation()));
     }
 
@@ -49,13 +51,26 @@ public class CropBoosterListener implements Listener {
         event.blockList().removeIf(block -> boosters.containsKey(block.getLocation()));
     }
 
-    // --- EXISTING LOGIC ---
     @EventHandler
     public void onPlace(BlockPlaceEvent event) {
-        if (event.getItemInHand().getItemMeta().getPersistentDataContainer().has(ShopListener.KEY_BOOSTER, PersistentDataType.INTEGER)) {
-            long duration = plugin.getConfig().getLong("shop.crop-booster.duration-seconds", 14400);
-            boosters.put(event.getBlock().getLocation(), System.currentTimeMillis() + (duration * 1000));
-            event.getPlayer().sendMessage(org.bukkit.ChatColor.GREEN + "Crop Booster Placed!");
+        ItemStack item = event.getItemInHand();
+        if (item.getItemMeta().getPersistentDataContainer().has(ShopListener.KEY_BOOSTER, PersistentDataType.INTEGER)) {
+            
+            long durationSeconds;
+
+            // CHECK: Does item have saved time?
+            if (item.getItemMeta().getPersistentDataContainer().has(ShopListener.KEY_TIME_LEFT, PersistentDataType.LONG)) {
+                // Use saved time
+                durationSeconds = item.getItemMeta().getPersistentDataContainer().get(ShopListener.KEY_TIME_LEFT, PersistentDataType.LONG);
+                event.getPlayer().sendMessage(org.bukkit.ChatColor.YELLOW + "Restored Booster: " + (durationSeconds / 60) + " minutes remaining.");
+            } else {
+                // Use full fresh time
+                durationSeconds = plugin.getConfig().getLong("shop.crop-booster.duration-seconds", 14400);
+                event.getPlayer().sendMessage(org.bukkit.ChatColor.GREEN + "New Crop Booster Placed!");
+            }
+
+            long expiryTime = System.currentTimeMillis() + (durationSeconds * 1000);
+            boosters.put(event.getBlock().getLocation(), expiryTime);
             saveBoosters();
         }
     }
@@ -102,25 +117,56 @@ public class CropBoosterListener implements Listener {
         }
     }
 
+    // --- UPDATED LOGIC ---
     private void pulseBooster(Block center) {
         center.getWorld().spawnParticle(Particle.VILLAGER_HAPPY, center.getLocation().add(0.5, 1, 0.5), 5, 0.5, 0.5, 0.5);
+        
+        // Read Multiplier from Config
+        double multiplier = plugin.getConfig().getDouble("shop.crop-booster.multiplier", 1.0);
+        
         int radius = 20;
         for (int x = -radius; x <= radius; x++) {
             for (int z = -radius; z <= radius; z++) {
                 for (int y = -2; y <= 2; y++) {
                     Block target = center.getRelative(x, y, z);
+                    
                     if (target.getBlockData() instanceof Ageable ageable) {
-                        if (ageable.getAge() < ageable.getMaximumAge() && random.nextBoolean()) {
-                            ageable.setAge(ageable.getAge() + 1);
-                            target.setBlockData(ageable);
-                            target.getWorld().spawnParticle(Particle.COMPOSTER, target.getLocation().add(0.5, 0.5, 0.5), 1);
+                        if (ageable.getAge() >= ageable.getMaximumAge()) continue;
+
+                        // LOGIC: 
+                        // Base chance is 50% (0.5).
+                        // We multiply this by the config multiplier.
+                        // Example: Multiplier 2.5 -> 0.5 * 2.5 = 1.25 (125% chance).
+                        // This means 1 guaranteed growth, plus 25% chance for a second growth.
+                        
+                        double chance = 0.5 * multiplier;
+                        
+                        // While chance is > 1.0, we guarantee growth and subtract 1
+                        while (chance >= 1.0) {
+                            if (ageable.getAge() < ageable.getMaximumAge()) {
+                                ageable.setAge(ageable.getAge() + 1);
+                                chance -= 1.0;
+                            } else {
+                                break;
+                            }
                         }
+                        
+                        // Handle remaining percentage (e.g., the 0.25 left over)
+                        if (chance > 0 && random.nextDouble() < chance) {
+                            if (ageable.getAge() < ageable.getMaximumAge()) {
+                                ageable.setAge(ageable.getAge() + 1);
+                            }
+                        }
+
+                        target.setBlockData(ageable);
+                        target.getWorld().spawnParticle(Particle.COMPOSTER, target.getLocation().add(0.5, 0.5, 0.5), 1);
                     }
                 }
             }
         }
     }
-
+    
+    // (Keep getBoosters, removeBooster, addTime, saveBoosters, loadBoosters as before...)
     public Map<Location, Long> getBoosters() { return boosters; }
     public void removeBooster(Location loc) { boosters.remove(loc); saveBoosters(); }
     public void addTime(Location loc, long millis) { if (boosters.containsKey(loc)) { boosters.put(loc, boosters.get(loc) + millis); saveBoosters(); } }

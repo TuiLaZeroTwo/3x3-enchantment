@@ -24,7 +24,7 @@ public final class HisaECM extends JavaPlugin {
         boosterListener = new CropBoosterListener(this);
         
         var pm = getServer().getPluginManager();
-        pm.registerEvents(new MainMenuListener(this), this); // NEW
+        pm.registerEvents(new MainMenuListener(this), this);
         pm.registerEvents(new MenuListener(this), this);
         pm.registerEvents(new ShopListener(this), this);
         pm.registerEvents(new BoosterGuiListener(this, boosterListener), this);
@@ -35,8 +35,11 @@ public final class HisaECM extends JavaPlugin {
         pm.registerEvents(new VeinMiningListener(this), this);
         pm.registerEvents(new HasteListener(this), this);
         pm.registerEvents(new DropsListener(this), this);
+        
+        // NEW LISTENER
+        pm.registerEvents(new HarvesterHoeListener(this), this);
 
-        getLogger().info("Hisa-ECM enabled with Main Menu GUI!");
+        getLogger().info("Hisa-ECM enabled with Harvester Hoes!");
     }
 
     @Override

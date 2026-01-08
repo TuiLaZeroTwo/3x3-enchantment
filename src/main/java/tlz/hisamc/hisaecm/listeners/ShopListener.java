@@ -17,60 +17,55 @@ import org.bukkit.persistence.PersistentDataType;
 import tlz.hisamc.hisaecm.HisaECM;
 import tlz.hisamc.hisaecm.gui.ShopMenu;
 
-import java.util.Map;
-
 public class ShopListener implements Listener {
 
     private final HisaECM plugin;
     public static final NamespacedKey KEY_BOOSTER = new NamespacedKey("hisaecm", "crop_booster_item");
+    public static final NamespacedKey KEY_HOE = new NamespacedKey("hisaecm", "harvester_hoe_item");
+    
+    // NEW KEY: Stores remaining time (in seconds) on the ItemStack
+    public static final NamespacedKey KEY_TIME_LEFT = new NamespacedKey("hisaecm", "booster_time_left");
+
     private final String BALANCE_PLACEHOLDER = "%zessentials_user_formatted_balance_shards%";
 
-    public ShopListener(HisaECM plugin) {
-        this.plugin = plugin;
-    }
+    public ShopListener(HisaECM plugin) { this.plugin = plugin; }
 
     @EventHandler
     public void onGuiClick(InventoryClickEvent event) {
         if (!event.getView().title().equals(ShopMenu.TITLE)) return;
         event.setCancelled(true);
-
         if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) return;
         Player player = (Player) event.getWhoClicked();
         
-        // Slot 13 = Crop Booster
-        if (event.getSlot() == 13) {
-            buyBooster(player);
-        }
+        if (event.getSlot() == 11) buyItem(player, "crop-booster", KEY_BOOSTER);
+        if (event.getSlot() == 15) buyItem(player, "harvester-hoe", KEY_HOE);
     }
 
-    private void buyBooster(Player player) {
+    private void buyItem(Player player, String configKey, NamespacedKey key) {
         FileConfiguration config = plugin.getConfig();
-        int price = config.getInt("shop.crop-booster.price");
+        int price = config.getInt("shop." + configKey + ".price");
         
         if (!hasEnoughShards(player, price)) {
             player.sendMessage(Component.text("Not enough shards!", NamedTextColor.RED));
             return;
         }
-        
-        // Check inv space
         if (player.getInventory().firstEmpty() == -1) {
             player.sendMessage(Component.text("Inventory full!", NamedTextColor.RED));
             return;
         }
 
-        // Take Money
         String cmd = "eco take shards " + player.getName() + " " + price;
         Bukkit.getGlobalRegionScheduler().execute(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd));
 
-        // Give Item
-        ItemStack booster = new ItemStack(Material.valueOf(config.getString("shop.crop-booster.material", "BEACON")));
-        ItemMeta meta = booster.getItemMeta();
-        meta.displayName(Component.text("Crop Booster", NamedTextColor.GREEN));
-        meta.getPersistentDataContainer().set(KEY_BOOSTER, PersistentDataType.INTEGER, 1);
-        booster.setItemMeta(meta);
+        Material mat = Material.valueOf(config.getString("shop." + configKey + ".material"));
+        ItemStack item = new ItemStack(mat);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text(config.getString("shop." + configKey + ".name"), NamedTextColor.GREEN));
+        meta.getPersistentDataContainer().set(key, PersistentDataType.INTEGER, 1);
+        item.setItemMeta(meta);
         
-        player.getInventory().addItem(booster);
-        player.sendMessage(Component.text("Purchased Crop Booster!", NamedTextColor.GREEN));
+        player.getInventory().addItem(item);
+        player.sendMessage(Component.text("Purchased " + config.getString("shop." + configKey + ".name") + "!", NamedTextColor.GREEN));
     }
 
     private boolean hasEnoughShards(Player player, int amount) {

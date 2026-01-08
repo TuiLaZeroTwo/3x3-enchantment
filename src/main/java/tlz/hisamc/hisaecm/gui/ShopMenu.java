@@ -22,11 +22,16 @@ public class ShopMenu {
         Inventory gui = Bukkit.createInventory(null, 27, TITLE);
         FileConfiguration config = HisaECM.getInstance().getConfig();
 
-        // Crop Booster (Slot 13)
-        gui.setItem(13, createIcon(
+        // 1. Crop Booster (Slot 11)
+        gui.setItem(11, createIcon(
                 Material.valueOf(config.getString("shop.crop-booster.material", "BEACON")),
-                "crop-booster",
-                config
+                "crop-booster", config
+        ));
+
+        // 2. Harvester Hoe (Slot 15)
+        gui.setItem(15, createIcon(
+                Material.valueOf(config.getString("shop.harvester-hoe.material", "DIAMOND_HOE")),
+                "harvester-hoe", config
         ));
 
         player.openInventory(gui);
