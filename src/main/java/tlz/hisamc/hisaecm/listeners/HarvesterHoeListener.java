@@ -1,6 +1,8 @@
 package tlz.hisamc.hisaecm.listeners;
 
 import org.bukkit.Material;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.Ageable;
 import org.bukkit.entity.Player;
@@ -30,27 +32,47 @@ public class HarvesterHoeListener implements Listener {
 
         if (tool.getType() == Material.AIR) return;
         ItemMeta meta = tool.getItemMeta();
-        // Check if item is Harvester Hoe
+        
+        // 1. Check for Harvester Hoe
         if (meta == null || !meta.getPersistentDataContainer().has(ShopListener.KEY_HOE, PersistentDataType.INTEGER)) return;
 
-        Block block = event.getBlock();
-        // Check if block is a valid crop
+        Block centerBlock = event.getBlock();
+        
+        // 2. Check if it is a crop
+        if (!(centerBlock.getBlockData() instanceof Ageable)) return;
+
+        // 3. CANCEL the break event so the block stays put (This fixes the replant issue)
+        event.setCancelled(true);
+
+        // 4. Harvest 3x3 Area
+        harvestArea(centerBlock, player, tool);
+    }
+
+    private void harvestArea(Block center, Player player, ItemStack tool) {
+        int radius = 1; // 1 block radius = 3x3 area
+
+        for (int x = -radius; x <= radius; x++) {
+            for (int z = -radius; z <= radius; z++) {
+                Block target = center.getRelative(x, 0, z);
+                
+                // Only harvest if it matches the center crop type (e.g. don't harvest carrots if hitting wheat)
+                if (target.getType() == center.getType()) {
+                    harvestSingleBlock(target, player, tool);
+                }
+            }
+        }
+    }
+
+    private void harvestSingleBlock(Block block, Player player, ItemStack tool) {
         if (!(block.getBlockData() instanceof Ageable ageable)) return;
 
-        // Only harvest Fully Grown crops
-        if (ageable.getAge() < ageable.getMaximumAge()) {
-            event.setCancelled(true);
-            player.sendMessage(org.bukkit.ChatColor.RED + "Not fully grown yet!");
-            return;
-        }
-
-        // --- HARVEST LOGIC ---
-        event.setDropItems(false); // Stop natural drops
+        // Only harvest if Fully Grown
+        if (ageable.getAge() < ageable.getMaximumAge()) return;
 
         // 1. Get Drops
         Collection<ItemStack> drops = block.getDrops(tool);
 
-        // 2. Give to Inventory
+        // 2. Give to Inventory (Telekinesis style)
         for (ItemStack drop : drops) {
             Map<Integer, ItemStack> left = player.getInventory().addItem(drop);
             for (ItemStack l : left.values()) {
@@ -58,9 +80,12 @@ public class HarvesterHoeListener implements Listener {
             }
         }
 
-        // 3. Replant (Reset Age)
-        // We use a slight delay or just set immediately. Setting immediately is safer for Folia.
+        // 3. Reset Age (Replant)
         ageable.setAge(0);
         block.setBlockData(ageable);
+
+        // 4. Effects
+        block.getWorld().spawnParticle(Particle.COMPOSTER, block.getLocation().add(0.5, 0.5, 0.5), 3);
+        block.getWorld().playSound(block.getLocation(), Sound.BLOCK_CROP_BREAK, 0.5f, 1.2f);
     }
 }
