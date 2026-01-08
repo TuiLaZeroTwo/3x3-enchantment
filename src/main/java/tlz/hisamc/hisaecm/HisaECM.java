@@ -8,6 +8,7 @@ import tlz.hisamc.hisaecm.listeners.*;
 public final class HisaECM extends JavaPlugin {
 
     private static HisaECM instance;
+    private CropBoosterListener boosterListener;
 
     @Override
     public void onEnable() {
@@ -20,17 +21,29 @@ public final class HisaECM extends JavaPlugin {
 
         getCommand("hisaecm").setExecutor(new HisaCommand(this));
 
+        // Initialize Listeners
+        boosterListener = new CropBoosterListener(this); // Now handles saving/loading
+        
         var pm = getServer().getPluginManager();
         pm.registerEvents(new MenuListener(this), this);
+        pm.registerEvents(new ShopListener(this), this);
+        pm.registerEvents(boosterListener, this);
+        
         pm.registerEvents(new MiningListener(this), this);
         pm.registerEvents(new ExplosiveListener(this), this);
-        pm.registerEvents(new HasteListener(this), this);
-        
-        // NEW LISTENERS
         pm.registerEvents(new VeinMiningListener(this), this);
-        pm.registerEvents(new DropsListener(this), this); // Handles Smelt & Telekinesis
+        
+        pm.registerEvents(new HasteListener(this), this);
+        pm.registerEvents(new DropsListener(this), this);
 
-        getLogger().info("Hisa-ECM enabled with Auto-Smelt, VeinMiner & Telekinesis!");
+        getLogger().info("Hisa-ECM enabled! Boosters set to " + getConfig().getInt("shop.crop-booster.duration-seconds") + "s.");
+    }
+
+    @Override
+    public void onDisable() {
+        if (boosterListener != null) {
+            boosterListener.saveBoosters(); // Save data on stop
+        }
     }
 
     public static HisaECM getInstance() { return instance; }

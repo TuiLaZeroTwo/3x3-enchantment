@@ -11,6 +11,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import tlz.hisamc.hisaecm.HisaECM;
 import tlz.hisamc.hisaecm.gui.EnchantMenu;
+import tlz.hisamc.hisaecm.gui.ShopMenu;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,55 +27,63 @@ public class HisaCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         
-        // Default to opening GUI if no args provided (Optional convenience)
+        // Default /hisaecm -> Show Help
         if (args.length == 0) {
+            sendHelp(sender);
+            return true;
+        }
+
+        String sub = args[0].toLowerCase();
+
+        if (sub.equals("enchant")) {
             if (sender instanceof Player player) {
                 EnchantMenu.open(player);
             } else {
-                sender.sendMessage(Component.text("Console cannot open GUI. Use: /hisaecm reload", NamedTextColor.RED));
+                sender.sendMessage(Component.text("Console cannot open GUI.", NamedTextColor.RED));
             }
             return true;
         }
 
-        String subCommand = args[0].toLowerCase();
-
-        // --- SUBCOMMAND: /hisaecm gui ---
-        if (subCommand.equals("gui")) {
-            if (!(sender instanceof Player player)) {
-                sender.sendMessage(Component.text("Only players can use this command.", NamedTextColor.RED));
-                return true;
+        if (sub.equals("shop")) {
+            if (sender instanceof Player player) {
+                ShopMenu.open(player);
+            } else {
+                sender.sendMessage(Component.text("Console cannot open GUI.", NamedTextColor.RED));
             }
-            EnchantMenu.open(player);
             return true;
         }
 
-        // --- SUBCOMMAND: /hisaecm reload ---
-        if (subCommand.equals("reload")) {
-            if (!sender.hasPermission("hisaecm.admin")) {
-                sender.sendMessage(Component.text("You do not have permission to reload.", NamedTextColor.RED));
-                return true;
+        if (sub.equals("reload")) {
+            if (sender.hasPermission("hisaecm.admin")) {
+                plugin.reloadConfig();
+                sender.sendMessage(Component.text("Reloaded configuration.", NamedTextColor.GREEN));
+            } else {
+                sender.sendMessage(Component.text("No permission.", NamedTextColor.RED));
             }
-
-            plugin.reloadConfig();
-            sender.sendMessage(Component.text("Hisa-ECM configuration reloaded successfully!", NamedTextColor.GREEN));
             return true;
         }
 
-        // Unknown command
-        sender.sendMessage(Component.text("Usage: /hisaecm [gui|reload]", NamedTextColor.RED));
+        sendHelp(sender);
         return true;
     }
 
-    // --- TAB COMPLETION ---
-    @Override
-    public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
-        List<String> completions = new ArrayList<>();
-        if (args.length == 1) {
-            completions.add("gui");
-            if (sender.hasPermission("hisaecm.admin")) {
-                completions.add("reload");
-            }
+    private void sendHelp(CommandSender sender) {
+        sender.sendMessage(Component.text("--- Hisa-ECM Help ---", NamedTextColor.GOLD));
+        sender.sendMessage(Component.text("/hisaecm enchant", NamedTextColor.YELLOW).append(Component.text(" - Open Enchant GUI", NamedTextColor.GRAY)));
+        sender.sendMessage(Component.text("/hisaecm shop", NamedTextColor.YELLOW).append(Component.text(" - Open Item Shop", NamedTextColor.GRAY)));
+        if (sender.hasPermission("hisaecm.admin")) {
+            sender.sendMessage(Component.text("/hisaecm reload", NamedTextColor.RED).append(Component.text(" - Reload Config", NamedTextColor.GRAY)));
         }
-        return completions;
+    }
+
+    @Override
+    public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command cmd, @NotNull String label, @NotNull String[] args) {
+        List<String> list = new ArrayList<>();
+        if (args.length == 1) {
+            list.add("enchant");
+            list.add("shop");
+            if (sender.hasPermission("hisaecm.admin")) list.add("reload");
+        }
+        return list;
     }
 }

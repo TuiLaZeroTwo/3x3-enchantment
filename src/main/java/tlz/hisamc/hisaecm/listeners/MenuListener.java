@@ -28,8 +28,8 @@ public class MenuListener implements Listener {
     // Keys
     private final NamespacedKey key3x3;
     private final NamespacedKey keyExplosive;
-    private final NamespacedKey keyHaste;
     private final NamespacedKey keyVein;
+    private final NamespacedKey keyHaste;
     private final NamespacedKey keySmelt;
     private final NamespacedKey keyTele;
 
@@ -39,8 +39,8 @@ public class MenuListener implements Listener {
         this.plugin = plugin;
         this.key3x3 = new NamespacedKey(plugin, "enchant_3x3");
         this.keyExplosive = new NamespacedKey(plugin, "enchant_explosive");
-        this.keyHaste = new NamespacedKey(plugin, "enchant_haste");
         this.keyVein = new NamespacedKey(plugin, "enchant_vein");
+        this.keyHaste = new NamespacedKey(plugin, "enchant_haste");
         this.keySmelt = new NamespacedKey(plugin, "enchant_smelt");
         this.keyTele = new NamespacedKey(plugin, "enchant_tele");
     }
@@ -62,21 +62,23 @@ public class MenuListener implements Listener {
 
         int slot = event.getSlot();
 
-        // 3x3 Mining
-        if (slot == 10) buyEnchant(player, heldItem, key3x3, "miner-3x3", keyExplosive);
-        // Explosive
-        else if (slot == 12) buyEnchant(player, heldItem, keyExplosive, "explosive", key3x3);
-        // Haste
-        else if (slot == 14) buyEnchant(player, heldItem, keyHaste, "haste", null);
-        // Vein Miner
-        else if (slot == 16) buyEnchant(player, heldItem, keyVein, "vein-miner", null);
-        // Auto Smelt
-        else if (slot == 28) buyEnchant(player, heldItem, keySmelt, "auto-smelt", null); // 2nd row
-        // Telekinesis
-        else if (slot == 30) buyEnchant(player, heldItem, keyTele, "telekinesis", null); // 2nd row
+        // 3x3 Mining -> Conflicts with Explosive & Vein
+        if (slot == 10) buyEnchant(player, heldItem, key3x3, "miner-3x3", keyExplosive, keyVein);
+        
+        // Explosive -> Conflicts with 3x3 & Vein
+        else if (slot == 12) buyEnchant(player, heldItem, keyExplosive, "explosive", key3x3, keyVein);
+        
+        // Vein Miner -> Conflicts with 3x3 & Explosive
+        else if (slot == 16) buyEnchant(player, heldItem, keyVein, "vein-miner", key3x3, keyExplosive);
+        
+        // Others (No conflicts)
+        else if (slot == 14) buyEnchant(player, heldItem, keyHaste, "haste");
+        else if (slot == 28) buyEnchant(player, heldItem, keySmelt, "auto-smelt");
+        else if (slot == 30) buyEnchant(player, heldItem, keyTele, "telekinesis");
     }
 
-    private void buyEnchant(Player player, ItemStack item, NamespacedKey key, String configName, NamespacedKey conflictKey) {
+    // Updated to accept multiple conflict keys (Varargs)
+    private void buyEnchant(Player player, ItemStack item, NamespacedKey key, String configName, NamespacedKey... conflicts) {
         FileConfiguration config = plugin.getConfig();
         int price = config.getInt("enchants." + configName + ".price");
         String displayName = config.getString("enchants." + configName + ".name");
@@ -90,11 +92,13 @@ public class MenuListener implements Listener {
             return;
         }
 
-        // 2. Check Conflicts (Exclusive Logic)
-        if (conflictKey != null && container.has(conflictKey, PersistentDataType.INTEGER)) {
-            player.sendMessage(Component.text("This enchant conflicts with another one you have!", NamedTextColor.RED));
-            player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1, 1);
-            return;
+        // 2. Check Conflicts
+        for (NamespacedKey conflict : conflicts) {
+            if (container.has(conflict, PersistentDataType.INTEGER)) {
+                player.sendMessage(Component.text("This enchant conflicts with your current mining mode!", NamedTextColor.RED));
+                player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1, 1);
+                return;
+            }
         }
 
         // 3. Check Balance
@@ -103,9 +107,9 @@ public class MenuListener implements Listener {
             return;
         }
 
+        // 4. Execute
         takeShards(player, price);
 
-        // 4. Apply
         container.set(key, PersistentDataType.INTEGER, 1);
         List<Component> lore = meta.lore();
         if (lore == null) lore = new ArrayList<>();
@@ -119,9 +123,8 @@ public class MenuListener implements Listener {
 
     private boolean hasEnoughShards(Player player, int amount) {
         try {
-            String balanceStr = PlaceholderAPI.setPlaceholders(player, BALANCE_PLACEHOLDER);
-            String cleanBalance = balanceStr.replaceAll("[^0-9.]", "");
-            return !cleanBalance.isEmpty() && Double.parseDouble(cleanBalance) >= amount;
+            String b = PlaceholderAPI.setPlaceholders(player, BALANCE_PLACEHOLDER).replaceAll("[^0-9.]", "");
+            return !b.isEmpty() && Double.parseDouble(b) >= amount;
         } catch (Exception e) { return false; }
     }
 

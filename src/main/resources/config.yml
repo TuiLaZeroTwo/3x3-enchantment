@@ -1,31 +1,36 @@
+# Hisa-ECM Configuration
+
 enchants:
   miner-3x3:
     name: "3x3 Mining"
     price: 5000
-    description: "Mines a 3x3 area instantly. (Incompatible with Explosive)"
-  
+    description: "Mines a 3x3 area. (Mutually Exclusive)"
   explosive:
     name: "Explosive"
     price: 8000
-    description: "Chance to create a diamond explosion. (Incompatible with 3x3)"
-    chance: 35
-
-  haste:
-    name: "Haste Aura"
-    price: 3000
-    description: "Grants Haste II while holding the tool."
-    
+    description: "Random diamond explosion. (Mutually Exclusive)"
+    chance: 20
   vein-miner:
     name: "Vein Miner"
     price: 10000
-    description: "Mines entire veins of ores instantly."
-    
+    description: "Mines entire veins. (Mutually Exclusive)"
+  haste:
+    name: "Haste Aura"
+    price: 3000
+    description: "Grants Haste II."
   auto-smelt:
     name: "Auto Smelt"
     price: 4000
-    description: "Automatically smelts mined ores."
-    
+    description: "Automatically smelts ores."
   telekinesis:
     name: "Telekinesis"
     price: 2000
-    description: "Drops go directly into your inventory."
+    description: "Drops go to inventory."
+
+shop:
+  crop-booster:
+    name: "Crop Booster"
+    price: 15000
+    description: "Boosts crops for 4 hours!"
+    material: BEACON
+    duration-seconds: 14400 # 4 Hours (4 * 60 * 60)
