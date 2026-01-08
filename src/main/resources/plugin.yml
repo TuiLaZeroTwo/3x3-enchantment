@@ -7,8 +7,10 @@ depend: [PlaceholderAPI]
 authors: [tlzytb]
 commands:
   hisaecm:
-    description: Main command for HisaECM
-    usage: /hisaecm [gui|reload]
+    description: Main command
+  bounty:
+    description: Open Bounty GUI
+    aliases: [bounties]
 permissions:
   hisaecm.admin:
     description: Allows reloading the plugin

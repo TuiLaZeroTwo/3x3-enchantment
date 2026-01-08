@@ -41,7 +41,7 @@ public class HarvesterHoeListener implements Listener {
         // 2. Check if it is a crop
         if (!(centerBlock.getBlockData() instanceof Ageable)) return;
 
-        // 3. CANCEL the break event so the block stays put (This fixes the replant issue)
+        // 3. CANCEL the natural break so we handle everything (drops + replant)
         event.setCancelled(true);
 
         // 4. Harvest 3x3 Area
@@ -55,7 +55,7 @@ public class HarvesterHoeListener implements Listener {
             for (int z = -radius; z <= radius; z++) {
                 Block target = center.getRelative(x, 0, z);
                 
-                // Only harvest if it matches the center crop type (e.g. don't harvest carrots if hitting wheat)
+                // Only harvest if it matches the center crop type
                 if (target.getType() == center.getType()) {
                     harvestSingleBlock(target, player, tool);
                 }
@@ -72,7 +72,8 @@ public class HarvesterHoeListener implements Listener {
         // 1. Get Drops
         Collection<ItemStack> drops = block.getDrops(tool);
 
-        // 2. Give to Inventory (Telekinesis style)
+        // 2. Give Drops to Inventory (Auto-Collect)
+        // We do this BEFORE replanting so the player can use the drops they just got to replant.
         for (ItemStack drop : drops) {
             Map<Integer, ItemStack> left = player.getInventory().addItem(drop);
             for (ItemStack l : left.values()) {
@@ -80,12 +81,51 @@ public class HarvesterHoeListener implements Listener {
             }
         }
 
-        // 3. Reset Age (Replant)
-        ageable.setAge(0);
-        block.setBlockData(ageable);
+        // 3. Replant Logic
+        Material seedType = getSeedForCrop(block.getType());
+        
+        if (seedType != null && hasItem(player, seedType)) {
+            // Player has seeds -> Take 1 and Replant
+            removeItem(player, seedType);
+            
+            ageable.setAge(0);
+            block.setBlockData(ageable);
+            
+            block.getWorld().spawnParticle(Particle.COMPOSTER, block.getLocation().add(0.5, 0.5, 0.5), 3);
+        } else {
+            // No seeds -> Break to Air
+            block.setType(Material.AIR);
+        }
 
-        // 4. Effects
-        block.getWorld().spawnParticle(Particle.COMPOSTER, block.getLocation().add(0.5, 0.5, 0.5), 3);
         block.getWorld().playSound(block.getLocation(), Sound.BLOCK_CROP_BREAK, 0.5f, 1.2f);
+    }
+
+    private Material getSeedForCrop(Material crop) {
+        switch (crop) {
+            case WHEAT: return Material.WHEAT_SEEDS;
+            case BEETROOTS: return Material.BEETROOT_SEEDS;
+            case CARROTS: return Material.CARROT;
+            case POTATOES: return Material.POTATO;
+            case NETHER_WART: return Material.NETHER_WART;
+            default: return null;
+        }
+    }
+
+    private boolean hasItem(Player player, Material mat) {
+        return player.getInventory().contains(mat);
+    }
+
+    private void removeItem(Player player, Material mat) {
+        ItemStack[] contents = player.getInventory().getContents();
+        for (int i = 0; i < contents.length; i++) {
+            if (contents[i] != null && contents[i].getType() == mat) {
+                if (contents[i].getAmount() > 1) {
+                    contents[i].setAmount(contents[i].getAmount() - 1);
+                } else {
+                    player.getInventory().setItem(i, null); // Remove item if amount is 1
+                }
+                return; // Removed 1, we are done
+            }
+        }
     }
 }

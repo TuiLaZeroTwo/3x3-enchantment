@@ -6,7 +6,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.configuration.file.FileConfiguration; // <--- ADDED THIS IMPORT
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -67,25 +67,31 @@ public class BoosterGuiListener implements Listener {
             return;
         }
 
-        long baseDuration = plugin.getConfig().getLong("shop.crop-booster.duration-seconds", 14400) * 1000;
+        // Calculate Duration in Milliseconds (Safe Long Math)
+        long baseSeconds = plugin.getConfig().getLong("shop.crop-booster.duration-seconds", 14400);
+        long baseDurationMillis = baseSeconds * 1000L;
+        
         int used = 0;
 
         if (click.isShiftClick()) {
             used = count;
             removeBoosters(player, used);
-            boosterLogic.addTime(loc, baseDuration * used);
+            boosterLogic.addTime(loc, baseDurationMillis * used);
             player.sendMessage(Component.text("Added " + used + " boosters worth of time!", NamedTextColor.GREEN));
         } else {
             used = 1;
             removeBoosters(player, 1);
-            boosterLogic.addTime(loc, baseDuration);
-            player.sendMessage(Component.text("Added 4 hours!", NamedTextColor.GREEN));
+            boosterLogic.addTime(loc, baseDurationMillis);
+            player.sendMessage(Component.text("Added " + (baseSeconds/3600) + " hours!", NamedTextColor.GREEN));
         }
         
         long newExpiry = boosterLogic.getBoosters().getOrDefault(loc, 0L);
         BoosterMenu.open(player, loc, newExpiry);
     }
 
+    // (handlePickup, showVisuals, sendBox, drawLine, isBoosterItem, removeBoosters remain unchanged)
+    // IMPORTANT: Include them here if you are copy-pasting the whole file.
+    
     private void handlePickup(Player player, Location loc) {
         long expiry = boosterLogic.getBoosters().getOrDefault(loc, 0L);
         long remainingMillis = expiry - System.currentTimeMillis();

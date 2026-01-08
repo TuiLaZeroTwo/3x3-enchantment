@@ -1,5 +1,7 @@
 package tlz.hisamc.hisaecm.listeners;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -16,7 +18,7 @@ import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.ItemStack; // <--- ADDED THIS IMPORT
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import tlz.hisamc.hisaecm.HisaECM;
 import tlz.hisamc.hisaecm.gui.BoosterMenu;
@@ -38,6 +40,17 @@ public class CropBoosterListener implements Listener {
         Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, (task) -> tickBoosters(), 100L, 100L);
     }
 
+    public void addTime(Location loc, long millisToAdd) {
+        if (boosters.containsKey(loc)) {
+            long currentExpiry = boosters.get(loc);
+            long now = System.currentTimeMillis();
+            if (currentExpiry < now) currentExpiry = now;
+            long newExpiry = currentExpiry + millisToAdd;
+            boosters.put(loc, newExpiry);
+            saveBoosters();
+        }
+    }
+
     @EventHandler
     public void onEntityExplode(EntityExplodeEvent event) {
         event.blockList().removeIf(block -> boosters.containsKey(block.getLocation()));
@@ -50,18 +63,19 @@ public class CropBoosterListener implements Listener {
 
     @EventHandler
     public void onPlace(BlockPlaceEvent event) {
-        ItemStack item = event.getItemInHand();
+        // FIX: Use getInventory().getItem(getHand()) instead of deprecated getItemInHand()
+        ItemStack item = event.getPlayer().getInventory().getItem(event.getHand());
+        
         if (item.hasItemMeta() && item.getItemMeta().getPersistentDataContainer().has(ShopListener.KEY_BOOSTER, PersistentDataType.INTEGER)) {
             
             long durationSeconds;
 
-            // CHECK: Does item have saved time?
             if (item.getItemMeta().getPersistentDataContainer().has(ShopListener.KEY_TIME_LEFT, PersistentDataType.LONG)) {
                 durationSeconds = item.getItemMeta().getPersistentDataContainer().get(ShopListener.KEY_TIME_LEFT, PersistentDataType.LONG);
-                event.getPlayer().sendMessage(org.bukkit.ChatColor.YELLOW + "Restored Booster: " + (durationSeconds / 60) + " minutes remaining.");
+                event.getPlayer().sendMessage(Component.text("Restored Booster: " + formatDuration(durationSeconds * 1000), NamedTextColor.YELLOW));
             } else {
                 durationSeconds = plugin.getConfig().getLong("shop.crop-booster.duration-seconds", 14400);
-                event.getPlayer().sendMessage(org.bukkit.ChatColor.GREEN + "New Crop Booster Placed!");
+                event.getPlayer().sendMessage(Component.text("New Crop Booster Placed!", NamedTextColor.GREEN));
             }
 
             long expiryTime = System.currentTimeMillis() + (durationSeconds * 1000);
@@ -82,7 +96,7 @@ public class CropBoosterListener implements Listener {
     public void onBreak(BlockBreakEvent event) {
         if (boosters.containsKey(event.getBlock().getLocation())) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(org.bukkit.ChatColor.RED + "Use the GUI (Right Click) to pick this up!");
+            event.getPlayer().sendMessage(Component.text("Use the GUI (Right Click) to pick this up!", NamedTextColor.RED));
         }
     }
 
@@ -142,9 +156,15 @@ public class CropBoosterListener implements Listener {
         }
     }
 
+    private String formatDuration(long millis) {
+        long seconds = millis / 1000;
+        long hours = seconds / 3600;
+        long minutes = (seconds % 3600) / 60;
+        return String.format("%dh %dm", hours, minutes);
+    }
+
     public Map<Location, Long> getBoosters() { return boosters; }
     public void removeBooster(Location loc) { boosters.remove(loc); saveBoosters(); }
-    public void addTime(Location loc, long millis) { if (boosters.containsKey(loc)) { boosters.put(loc, boosters.get(loc) + millis); saveBoosters(); } }
 
     public void saveBoosters() {
         YamlConfiguration yaml = new YamlConfiguration();
