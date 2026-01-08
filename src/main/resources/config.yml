@@ -1,0 +1,21 @@
+# Hisa-ECM Configuration
+
+# Currency used: ZEssentials Shards
+# Command run to take money: "zessentials eco take %player% shards %amount%"
+
+enchants:
+  miner-3x3:
+    name: "3x3 Mining"
+    price: 5000
+    description: "Mines a 3x3 area instantly."
+  
+  explosive:
+    name: "Explosive"
+    price: 8000
+    description: "Chance to cause an explosion when mining."
+    chance: 20 # Percent chance to explode
+
+  haste:
+    name: "Haste Aura"
+    price: 3000
+    description: "Grants Haste II while holding the tool."
