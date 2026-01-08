@@ -25,9 +25,13 @@ import java.util.List;
 public class MenuListener implements Listener {
 
     private final HisaECM plugin;
+    // Keys
     private final NamespacedKey key3x3;
     private final NamespacedKey keyExplosive;
     private final NamespacedKey keyHaste;
+    private final NamespacedKey keyVein;
+    private final NamespacedKey keySmelt;
+    private final NamespacedKey keyTele;
 
     private final String BALANCE_PLACEHOLDER = "%zessentials_user_formatted_balance_shards%";
 
@@ -36,6 +40,9 @@ public class MenuListener implements Listener {
         this.key3x3 = new NamespacedKey(plugin, "enchant_3x3");
         this.keyExplosive = new NamespacedKey(plugin, "enchant_explosive");
         this.keyHaste = new NamespacedKey(plugin, "enchant_haste");
+        this.keyVein = new NamespacedKey(plugin, "enchant_vein");
+        this.keySmelt = new NamespacedKey(plugin, "enchant_smelt");
+        this.keyTele = new NamespacedKey(plugin, "enchant_tele");
     }
 
     @EventHandler
@@ -55,16 +62,21 @@ public class MenuListener implements Listener {
 
         int slot = event.getSlot();
 
-        if (slot == 11) {
-            buyEnchant(player, heldItem, key3x3, "miner-3x3");
-        } else if (slot == 13) {
-            buyEnchant(player, heldItem, keyExplosive, "explosive");
-        } else if (slot == 15) {
-            buyEnchant(player, heldItem, keyHaste, "haste");
-        }
+        // 3x3 Mining
+        if (slot == 10) buyEnchant(player, heldItem, key3x3, "miner-3x3", keyExplosive);
+        // Explosive
+        else if (slot == 12) buyEnchant(player, heldItem, keyExplosive, "explosive", key3x3);
+        // Haste
+        else if (slot == 14) buyEnchant(player, heldItem, keyHaste, "haste", null);
+        // Vein Miner
+        else if (slot == 16) buyEnchant(player, heldItem, keyVein, "vein-miner", null);
+        // Auto Smelt
+        else if (slot == 28) buyEnchant(player, heldItem, keySmelt, "auto-smelt", null); // 2nd row
+        // Telekinesis
+        else if (slot == 30) buyEnchant(player, heldItem, keyTele, "telekinesis", null); // 2nd row
     }
 
-    private void buyEnchant(Player player, ItemStack item, NamespacedKey key, String configName) {
+    private void buyEnchant(Player player, ItemStack item, NamespacedKey key, String configName, NamespacedKey conflictKey) {
         FileConfiguration config = plugin.getConfig();
         int price = config.getInt("enchants." + configName + ".price");
         String displayName = config.getString("enchants." + configName + ".name");
@@ -72,20 +84,28 @@ public class MenuListener implements Listener {
         ItemMeta meta = item.getItemMeta();
         PersistentDataContainer container = meta.getPersistentDataContainer();
 
+        // 1. Check Ownership
         if (container.has(key, PersistentDataType.INTEGER)) {
             player.sendMessage(Component.text("You already have " + displayName + "!", NamedTextColor.RED));
             return;
         }
 
+        // 2. Check Conflicts (Exclusive Logic)
+        if (conflictKey != null && container.has(conflictKey, PersistentDataType.INTEGER)) {
+            player.sendMessage(Component.text("This enchant conflicts with another one you have!", NamedTextColor.RED));
+            player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1, 1);
+            return;
+        }
+
+        // 3. Check Balance
         if (!hasEnoughShards(player, price)) {
             player.sendMessage(Component.text("Not enough shards! Need: " + price, NamedTextColor.RED));
             return;
         }
 
-        // Take money (FIXED THREADING)
         takeShards(player, price);
 
-        // Apply Enchant
+        // 4. Apply
         container.set(key, PersistentDataType.INTEGER, 1);
         List<Component> lore = meta.lore();
         if (lore == null) lore = new ArrayList<>();
@@ -101,19 +121,12 @@ public class MenuListener implements Listener {
         try {
             String balanceStr = PlaceholderAPI.setPlaceholders(player, BALANCE_PLACEHOLDER);
             String cleanBalance = balanceStr.replaceAll("[^0-9.]", "");
-            if (cleanBalance.isEmpty()) return false;
-            return Double.parseDouble(cleanBalance) >= amount;
-        } catch (Exception e) {
-            plugin.getLogger().warning("Failed to parse balance: " + e.getMessage());
-            return false;
-        }
+            return !cleanBalance.isEmpty() && Double.parseDouble(cleanBalance) >= amount;
+        } catch (Exception e) { return false; }
     }
 
     private void takeShards(Player player, int amount) {
-        String cmd = "eco take " + " shards " + player.getName() + " " + amount;
-
-        Bukkit.getGlobalRegionScheduler().execute(plugin, () -> {
-            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
-        });
+        String cmd = "eco take shards " + player.getName() + " " + amount;
+        Bukkit.getGlobalRegionScheduler().execute(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd));
     }
 }

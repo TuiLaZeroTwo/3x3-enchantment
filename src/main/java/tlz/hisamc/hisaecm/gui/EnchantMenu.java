@@ -13,44 +13,34 @@ import org.bukkit.inventory.meta.ItemMeta;
 import tlz.hisamc.hisaecm.HisaECM;
 
 import java.util.Arrays;
-import java.util.List;
 
 public class EnchantMenu {
 
     public static final Component TITLE = Component.text("Hisa Custom Enchants");
 
     public static void open(Player player) {
-        Inventory gui = Bukkit.createInventory(null, 27, TITLE);
+        // Increased size to 36 to fit more items
+        Inventory gui = Bukkit.createInventory(null, 36, TITLE);
         FileConfiguration config = HisaECM.getInstance().getConfig();
 
-        // 1. 3x3 Miner (Slot 11)
-        gui.setItem(11, createIcon(
-            Material.NETHER_STAR, 
-            config.getString("enchants.miner-3x3.name"), 
-            config.getInt("enchants.miner-3x3.price"),
-            config.getString("enchants.miner-3x3.description")
-        ));
-
-        // 2. Explosive (Slot 13)
-        gui.setItem(13, createIcon(
-            Material.TNT, 
-            config.getString("enchants.explosive.name"), 
-            config.getInt("enchants.explosive.price"),
-            config.getString("enchants.explosive.description")
-        ));
-
-        // 3. Haste (Slot 15)
-        gui.setItem(15, createIcon(
-            Material.GOLDEN_PICKAXE, 
-            config.getString("enchants.haste.name"), 
-            config.getInt("enchants.haste.price"),
-            config.getString("enchants.haste.description")
-        ));
+        // Row 1
+        gui.setItem(10, createIcon(Material.NETHER_STAR, "miner-3x3", config));
+        gui.setItem(12, createIcon(Material.TNT, "explosive", config));
+        gui.setItem(14, createIcon(Material.GOLDEN_PICKAXE, "haste", config));
+        gui.setItem(16, createIcon(Material.DIAMOND, "vein-miner", config));
+        
+        // Row 2
+        gui.setItem(28, createIcon(Material.FURNACE, "auto-smelt", config));
+        gui.setItem(30, createIcon(Material.ENDER_PEARL, "telekinesis", config));
 
         player.openInventory(gui);
     }
 
-    private static ItemStack createIcon(Material mat, String name, int price, String desc) {
+    private static ItemStack createIcon(Material mat, String configKey, FileConfiguration config) {
+        String name = config.getString("enchants." + configKey + ".name");
+        int price = config.getInt("enchants." + configKey + ".price");
+        String desc = config.getString("enchants." + configKey + ".description");
+
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
         
