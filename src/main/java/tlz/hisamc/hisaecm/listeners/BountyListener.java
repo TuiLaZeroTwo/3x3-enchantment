@@ -1,12 +1,14 @@
 package tlz.hisamc.hisaecm.listeners;
 
 import io.papermc.paper.event.player.AsyncChatEvent;
+import me.clip.placeholderapi.PlaceholderAPI; // Import PAPI
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import tlz.hisamc.hisaecm.HisaECM;
@@ -21,8 +23,8 @@ public class BountyListener implements Listener {
 
     private final HisaECM plugin;
     private final BountyManager manager;
+    private final String BALANCE_PLACEHOLDER = "%zessentials_user_formatted_balance_shards%";
     
-    // State Management for Chat Input
     public static final Map<UUID, String> inputState = new HashMap<>();
     public static final Map<UUID, String> tempTarget = new HashMap<>();
 
@@ -31,7 +33,7 @@ public class BountyListener implements Listener {
         this.manager = manager;
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onChat(AsyncChatEvent event) {
         Player player = event.getPlayer();
         if (!inputState.containsKey(player.getUniqueId())) return;
@@ -40,7 +42,6 @@ public class BountyListener implements Listener {
         String message = PlainTextComponentSerializer.plainText().serialize(event.message());
         String state = inputState.get(player.getUniqueId());
 
-        // --- FLOW: PLACE NEW BOUNTY ---
         if (state.equals("PLACE_TARGET")) {
             tempTarget.put(player.getUniqueId(), message);
             inputState.put(player.getUniqueId(), "PLACE_AMOUNT");
@@ -52,10 +53,8 @@ public class BountyListener implements Listener {
             try {
                 double amount = Double.parseDouble(message);
                 if (amount <= 0) throw new NumberFormatException();
-                
                 String target = tempTarget.get(player.getUniqueId());
                 processTransaction(player, target, amount);
-                
             } catch (NumberFormatException e) {
                 player.sendMessage(Component.text("Invalid number. Cancelled.", NamedTextColor.RED));
             }
@@ -63,7 +62,6 @@ public class BountyListener implements Listener {
             return;
         }
 
-        // --- FLOW: RAISE BOUNTY ---
         if (state.equals("RAISE_TARGET")) {
             if (manager.getBounty(message) <= 0) {
                 player.sendMessage(Component.text("That player has no bounty. Use 'Place Bounty' instead.", NamedTextColor.RED));
@@ -90,22 +88,32 @@ public class BountyListener implements Listener {
     }
 
     private void processTransaction(Player player, String target, double amount) {
-        // Run on main thread for Bukkit Commands
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            // Note: Add logic here to check if player actually has money using Vault or PlaceholderAPI
-            // For now, we attempt to take it.
+        Bukkit.getGlobalRegionScheduler().execute(plugin, () -> {
+            // --- SECURITY CHECK START ---
+            if (!hasEnoughShards(player, amount)) {
+                player.sendMessage(Component.text("You do not have enough Shards!", NamedTextColor.RED));
+                return;
+            }
+            // --- SECURITY CHECK END ---
+
             String cmd = "eco take shards " + player.getName() + " " + amount;
             Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
 
             manager.addBounty(target, amount);
             player.sendMessage(Component.text("Bounty placed/raised successfully!", NamedTextColor.GREEN));
             
-            // Broadcast
             Bukkit.broadcast(Component.text(player.getName() + " placed a " + amount + " shard bounty on " + target + "!", NamedTextColor.RED));
             
-            // Re-open GUI
             BountyMenu.open(player, 0);
         });
+    }
+
+    private boolean hasEnoughShards(Player player, double amount) {
+        try {
+            // Strip non-numeric chars (commas, currency symbols)
+            String b = PlaceholderAPI.setPlaceholders(player, BALANCE_PLACEHOLDER).replaceAll("[^0-9.]", "");
+            return !b.isEmpty() && Double.parseDouble(b) >= amount;
+        } catch (Exception e) { return false; }
     }
 
     private void clearState(Player player) {
@@ -113,7 +121,6 @@ public class BountyListener implements Listener {
         tempTarget.remove(player.getUniqueId());
     }
 
-    // --- PVP LOGIC ---
     @EventHandler
     public void onDeath(PlayerDeathEvent event) {
         Player victim = event.getEntity();
@@ -124,9 +131,10 @@ public class BountyListener implements Listener {
             manager.removeBounty(victim.getName());
             
             if (killer != null && !killer.equals(victim)) {
-                // Give money to Killer
                 String cmd = "eco give shards " + killer.getName() + " " + bounty;
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+                Bukkit.getGlobalRegionScheduler().execute(plugin, () -> {
+                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+                });
                 
                 killer.sendMessage(Component.text("You claimed the bounty of " + bounty + " Shards!", NamedTextColor.GOLD));
                 Bukkit.broadcast(Component.text(killer.getName() + " claimed the bounty on " + victim.getName() + "!", NamedTextColor.GOLD));

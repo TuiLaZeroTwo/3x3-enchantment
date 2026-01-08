@@ -95,10 +95,14 @@ public class BountyMenu {
         player.openInventory(gui);
     }
 
+    @SuppressWarnings("deprecation") // Suppresses warning for getOfflinePlayer(String)
     private static ItemStack createHead(String name, double amount) {
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
-        meta.setOwner(name); // Deprecated but simple. Use setOwningPlayer for async/UUID if needed.
+        
+        // FIX: Replaced setOwner(String) with setOwningPlayer(OfflinePlayer)
+        meta.setOwningPlayer(Bukkit.getOfflinePlayer(name)); 
+        
         meta.displayName(Component.text(name, NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
         meta.lore(Arrays.asList(
             Component.text("Bounty: ", NamedTextColor.GRAY).append(Component.text(amount + " Shards", NamedTextColor.GOLD)).decoration(TextDecoration.ITALIC, false),
