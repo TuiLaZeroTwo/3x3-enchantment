@@ -1,5 +1,5 @@
 # -------------------------------------------------------------------------
-# DATABASE SETTINGS
+# DATABASE SETTINGS (NEW)
 # -------------------------------------------------------------------------
 database:
   # Options: sqlite, mysql
@@ -18,18 +18,17 @@ database:
 # -------------------------------------------------------------------------
 auto-clear:
   enabled: false
-  interval-seconds: 7200    # 2 Hours (7200 seconds)
-  ignore-named-items: true  # If true, items with custom names (God sets) won't be cleared.
+  interval-seconds: 7200    # 2 Hours
+  ignore-named-items: true
   warnings: [60, 30, 10, 5, 4, 3, 2, 1]
-  messages:s
+  messages:
     prefix: "&8[&c&lAutoClear&8] "
     warning: "&7Removed dropped items in &c%time% &7seconds!"
     cleared: "&aRemoved &f%amount% &aitems from the ground!"
 
 # -------------------------------------------------------------------------
-# HISA-ECM CONFIGURATION
+# HISA-ECM ENCHANTS
 # -------------------------------------------------------------------------
-
 enchants:
   miner-3x3:
     name: "&6&l3x3 Mining"
@@ -38,7 +37,7 @@ enchants:
   explosive:
     name: "&c&lExplosive"
     price: 10000
-    description: "&7Chance to causse a &cblast&7 when mining. &8(Mutually Exclusive)"
+    description: "&7Chance to cause a &cblast&7 when mining. &8(Mutually Exclusive)"
     chance: 20
   vein-miner:
     name: "&a&lVein Miner"
@@ -57,6 +56,9 @@ enchants:
     price: 2200
     description: "&7Drops go directly to your &finventory&7."
 
+# -------------------------------------------------------------------------
+# SHOP ITEMS
+# -------------------------------------------------------------------------
 shop:
   crop-booster:
     name: "&a&lCrop Booster"
