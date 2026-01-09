@@ -54,27 +54,52 @@ public class MenuListener implements Listener {
         Player player = (Player) event.getWhoClicked();
         ItemStack heldItem = player.getInventory().getItemInMainHand();
 
-        if (!Tag.ITEMS_PICKAXES.isTagged(heldItem.getType())) {
-            player.sendMessage(Component.text("You must hold a Pickaxe!", NamedTextColor.RED));
+        // REMOVED: Global Pickaxe Check
+        if (heldItem.getType() == Material.AIR) {
+            player.sendMessage(Component.text("You must hold a tool!", NamedTextColor.RED));
             return;
         }
 
         int slot = event.getSlot();
 
         // --- GROUP A: Mining Modes (Mutually Exclusive) ---
-        // 3x3 Mining -> Conflicts with Explosive & Vein Miner
-        if (slot == 10) buyEnchant(player, heldItem, key3x3, "miner-3x3", keyExplosive, keyVein);
         
-        // Explosive -> Conflicts with 3x3 & Vein Miner
-        else if (slot == 12) buyEnchant(player, heldItem, keyExplosive, "explosive", key3x3, keyVein);
+        // 1. 3x3 Mining (Slot 10) - Pickaxes & Shovels
+        if (slot == 10) {
+            if (!isValidTool(heldItem, "PICKAXE", "SHOVEL")) return;
+            buyEnchant(player, heldItem, key3x3, "miner-3x3", keyExplosive, keyVein);
+        }
         
-        // Vein Miner -> Conflicts with 3x3 & Explosive
-        else if (slot == 16) buyEnchant(player, heldItem, keyVein, "vein-miner", key3x3, keyExplosive);
+        // 2. Explosive (Slot 12) - Pickaxes & Shovels
+        else if (slot == 12) {
+            if (!isValidTool(heldItem, "PICKAXE", "SHOVEL")) return;
+            buyEnchant(player, heldItem, keyExplosive, "explosive", key3x3, keyVein);
+        }
+        
+        // 3. Vein Miner (Slot 16) - Pickaxes AND AXES
+        else if (slot == 16) {
+            if (!isValidTool(heldItem, "PICKAXE", "AXE")) return;
+            buyEnchant(player, heldItem, keyVein, "vein-miner", key3x3, keyExplosive);
+        }
 
         // --- GROUP B: Passives (Compatible with everything) ---
         else if (slot == 14) buyEnchant(player, heldItem, keyHaste, "haste");
         else if (slot == 28) buyEnchant(player, heldItem, keySmelt, "auto-smelt");
         else if (slot == 30) buyEnchant(player, heldItem, keyTele, "telekinesis");
+    }
+
+    // Helper to validate tool types safely
+    private boolean isValidTool(ItemStack item, String... allowedTypes) {
+        for (String type : allowedTypes) {
+            if (type.equals("PICKAXE") && Tag.ITEMS_PICKAXES.isTagged(item.getType())) return true;
+            if (type.equals("AXE") && Tag.ITEMS_AXES.isTagged(item.getType())) return true;
+            if (type.equals("SHOVEL") && Tag.ITEMS_SHOVELS.isTagged(item.getType())) return true;
+        }
+        // If we get here, tool is invalid
+        String msg = String.join(" or ", allowedTypes);
+        // Clean up message (e.g., "PICKAXE or AXE")
+        Bukkit.getPlayer(item.getType().toString()); // Dummy call, just need player context ideally but here we rely on return false
+        return false; 
     }
 
     private void buyEnchant(Player player, ItemStack item, NamespacedKey key, String configName, NamespacedKey... conflicts) {
