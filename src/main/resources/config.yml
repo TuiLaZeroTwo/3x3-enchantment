@@ -1,4 +1,16 @@
-# Hisa-ECM Configuration
+
+# -------------------------------------------------------------------------
+# AUTO CLEAR SETTINGS (Lag Removal)
+# -------------------------------------------------------------------------
+auto-clear:
+  enabled: false
+  interval-seconds: 7200    # 2 Hours (7200 seconds)
+  ignore-named-items: true  # If true, items with custom names (God sets) won't be cleared.
+  warnings: [60, 30, 10, 5, 4, 3, 2, 1]
+  messages:
+    prefix: "&8[&c&lAutoClear&8] "
+    warning: "&7Removed dropped items in &c%time% &7seconds!"
+    cleared: "&aRemoved &f%amount% &aitems from the ground!"# Hisa-ECM Configuration
 
 enchants:
   miner-3x3:

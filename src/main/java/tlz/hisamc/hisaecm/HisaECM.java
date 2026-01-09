@@ -4,6 +4,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 import tlz.hisamc.hisaecm.commands.HisaCommand;
 import tlz.hisamc.hisaecm.listeners.*;
+import tlz.hisamc.hisaecm.tasks.AutoClearTask;
 import tlz.hisamc.hisaecm.util.BountyManager; // NEW
 
 public final class HisaECM extends JavaPlugin {
@@ -11,17 +12,27 @@ public final class HisaECM extends JavaPlugin {
     private static HisaECM instance;
     private CropBoosterListener boosterListener;
     private BountyManager bountyManager; // NEW
+    private AutoClearTask autoClearTask;
 
     @Override
     public void onEnable() {
         instance = this;
         saveDefaultConfig();
 
+        if (getConfig().getBoolean("auto-clear.enabled", true)) {
+            this.autoClearTask = new AutoClearTask(this); // Create ONE instance
+            
+            Bukkit.getGlobalRegionScheduler().runAtFixedRate(this, (task) -> {
+                autoClearTask.run(); 
+            }, 20L, 20L);
+            
+            getLogger().info("AutoClear task started.");
+        }
+
         if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") == null) {
             getLogger().warning("PlaceholderAPI not found! Shard costs will not work.");
         }
 
-        // Initialize Managers
         bountyManager = new BountyManager(this);
         boosterListener = new CropBoosterListener(this);
 
