@@ -1,42 +1,69 @@
-# ⚡ Hisa-ECM (Enhanced Custom Miner)
+# H I S A - E C M
 
-![Version](https://img.shields.io/badge/version-0.0.1-blue) ![API](https://img.shields.io/badge/Folia-1.20.1-green) ![Java](https://img.shields.io/badge/Java-17%2B-orange)
+> Advanced Economy, Custom Enchants, and Server Mechanics.
+> Optimized for Folia & Paper 1.20+
 
-**Hisa-ECM** is a high-performance custom enchantment plugin optimized for **Folia** and Paper. It introduces a GUI-based enchantment system, featuring a powerful 3x3 mining mechanic with built-in anti-dupe and durability synchronization.
+---
 
-## ✨ Features
+## 01 // OVERVIEW
 
-- **🚀 Folia Support:** Fully threaded and optimized for regionized multithreading.
-- **⛏️ 3x3 Mining:** Automatically mines a 3x3 area based on the block face you hit.
-- **🛡️ Anti-Dupe:** - Durability is calculated per block broken.
-  - Checks if the user actually holds the tool.
-  - Prevents "Free Mining" (mining without durability loss).
-- **🛑 Sneak-to-Precision:** Hold `Shift` (Sneak) to mine only one block.
-- **🖥️ GUI System:** Clean, simple interface to apply enchants.
+Hisa-ECM is a modular core plugin designed for modern Minecraft survival and economy servers. It replaces multiple standalone plugins by integrating custom enchantments, economy utilities, and automation machines into a single, high-performance package.
 
-## 🛠️ Installation
+Built with Folia multi-threading support in mind.
 
-1. Stop your server.
-2. Place `Hisa-ECM-0.0.1.jar` into your `plugins` folder.
-3. Start the server.
+## 02 // FEATURES
 
-## 🎮 Commands
+### Core Mechanics
+* **Chunk Loader Bots** :: Physical Armor Stands that keep chunks loaded. Fuel them with Coal Blocks.
+* **Crop Boosters** :: Placeable crystals that accelerate crop growth in a radius.
+* **Auto-Clear System** :: Lag reduction task that clears ground items on a configurable interval.
+
+### Custom Enchantments
+* **Vein Miner** :: Breaks entire ore veins or trees instantly. (Sneak to activate).
+* **Explosive** :: Chance to blast a 3x3 area when mining.
+* **3x3 Mining** :: Mines a 3x3 area suitable for tunnel boring.
+* **Telekinesis** :: Items go directly to inventory.
+* **Auto-Smelt** :: Automatically smelts ores into ingots.
+* **Haste Aura** :: Passive mining speed boost.
+
+### Economy Modules
+* **Bounty System** :: Place, track, and claim shard-based bounties on other players.
+* **Shop System** :: GUI-based shop for buying custom items and enchants.
+* **Withdraw** :: (Planned) Convert currency into physical notes.
+
+## 03 // COMMANDS
 
 | Command | Description | Permission |
 | :--- | :--- | :--- |
-| `/hisaecm` | Opens the Custom Enchant GUI | `None (Everyone)` |
+| /hisaecm help | Show the help menu | hisaecm.help |
+| /hisaecm reload | Reload configuration files | hisaecm.admin |
+| /hisaecm give <item> | Give special items (Loaders, Boosters) | hisaecm.admin |
+| /hisaecm enchant | Open the Enchantment Shop | hisaecm.enchant |
+| /bounty | Open the Bounty Menu | hisaecm.bounty |
 
-## ⚙️ Usage
+## 04 // CONFIGURATION
 
-1. Hold a **Pickaxe** in your main hand.
-2. Type `/hisaecm`.
-3. Click the **Nether Star** in the middle of the GUI.
-4. Your pickaxe is now enchanted with **3x3 Mining I**.
-5. Go mine!
+The plugin generates the following configuration files:
 
-## 🔧 Building from Source
+* config.yml :: Main settings, message customization, and enchantment probabilities.
+* bounties.yml :: Database for active player bounties.
+* loaders.yml :: Data storage for active Chunk Loaders.
+* boosters.yml :: Data storage for active Crop Boosters.
 
-```bash
-git clone [https://github.com/yourname/hisa-ecm.git](https://github.com/yourname/hisa-ecm.git)
-cd hisa-ecm
-./gradlew build
+## 05 // INSTALLATION
+
+1.  Stop your server.
+2.  Drop Hisa-ECM.jar into the /plugins folder.
+3.  Ensure PlaceholderAPI is installed (Required for economy).
+4.  Start the server.
+5.  Configure settings in config.yml.
+
+## 06 // REQUIREMENTS
+
+* Java 17 or higher
+* Paper, Purpur, or Folia (1.20.1+)
+* PlaceholderAPI (for Shards economy hook)
+
+---
+
+[ Source Code ]  [ Report Issues ]  [ Wiki ]

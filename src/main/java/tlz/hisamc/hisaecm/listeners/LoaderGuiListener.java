@@ -11,6 +11,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent; // Fix: Import Drag Event
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
@@ -33,10 +34,13 @@ public class LoaderGuiListener implements Listener {
     @EventHandler
     public void onClick(InventoryClickEvent event) {
         if (!event.getView().title().equals(LoaderMenu.TITLE)) return;
-        event.setCancelled(true);
+        event.setCancelled(true); // Stop taking items
         if (event.getCurrentItem() == null) return;
 
         Player player = (Player) event.getWhoClicked();
+        // Prevent clicking in own inventory from doing anything weird
+        if (event.getClickedInventory() == player.getInventory()) return; 
+
         int slot = event.getSlot();
 
         ItemStack info = event.getInventory().getItem(13);
@@ -80,6 +84,14 @@ public class LoaderGuiListener implements Listener {
             } else {
                 player.sendMessage(Component.text("ChunkLoader Bot picked up.", NamedTextColor.YELLOW));
             }
+        }
+    }
+
+    // --- SECURITY FIX: Prevent Menu Stealing via Dragging ---
+    @EventHandler
+    public void onDrag(InventoryDragEvent event) {
+        if (event.getView().title().equals(LoaderMenu.TITLE)) {
+            event.setCancelled(true);
         }
     }
 
