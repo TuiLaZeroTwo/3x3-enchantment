@@ -1,6 +1,7 @@
 package tlz.hisamc.hisaecm.listeners;
 
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey; // Import this
 import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
@@ -17,8 +18,10 @@ import java.util.*;
 public class VeinMiningListener implements Listener {
 
     private final HisaECM plugin;
-    // Set to prevent infinite loops (BlockBreakEvent triggering itself)
     private final Set<UUID> isVeinMining = new HashSet<>();
+    
+    // FIX: Define the key here so it doesn't crash if EnchantMenuListener is missing
+    private static final NamespacedKey KEY_VEIN = new NamespacedKey("hisaecm", "vein_miner");
 
     public VeinMiningListener(HisaECM plugin) {
         this.plugin = plugin;
@@ -29,19 +32,19 @@ public class VeinMiningListener implements Listener {
         if (event.isCancelled()) return;
         Player player = event.getPlayer();
         
-        // Prevent recursion
         if (isVeinMining.contains(player.getUniqueId())) return;
 
         ItemStack tool = player.getInventory().getItemInMainHand();
         if (tool.getType() == Material.AIR || !tool.hasItemMeta()) return;
 
         ItemMeta meta = tool.getItemMeta();
-        if (!meta.getPersistentDataContainer().has(EnchantMenuListener.KEY_VEIN, PersistentDataType.INTEGER)) return;
+        
+        // FIX: Use the local KEY_VEIN variable
+        if (!meta.getPersistentDataContainer().has(KEY_VEIN, PersistentDataType.INTEGER)) return;
 
         Block startBlock = event.getBlock();
         Material startType = startBlock.getType();
 
-        // 1. Check Logic: Pickaxe + Ore OR Axe + Log
         boolean isOre = isOre(startType);
         boolean isLog = isLog(startType);
         boolean validTool = false;
@@ -51,7 +54,6 @@ public class VeinMiningListener implements Listener {
 
         if (!validTool) return;
 
-        // 2. Perform Vein Mine
         isVeinMining.add(player.getUniqueId());
         try {
             veinMine(startBlock, player, tool, startType);
@@ -67,25 +69,19 @@ public class VeinMiningListener implements Listener {
         queue.add(start);
         visited.add(start);
 
-        int maxBlocks = 128; // Limit to prevent crash
+        int maxBlocks = 128; 
         int broken = 0;
 
         while (!queue.isEmpty() && broken < maxBlocks) {
             Block current = queue.poll();
 
-            // Skip the very first block (it is broken by the event naturally)
             if (!current.equals(start)) {
                 if (!current.getType().equals(targetType) && !areOresRelated(targetType, current.getType())) continue;
                 
-                // Break naturally drops items (works with Fortune/Silk Touch automatically)
                 current.breakNaturally(tool);
                 broken++;
-                
-                // Optional: Damage Tool (1 durability per block)
-                // tool.setDurability((short) (tool.getDurability() + 1));
             }
 
-            // Search Neighbors
             for (int x = -1; x <= 1; x++) {
                 for (int y = -1; y <= 1; y++) {
                     for (int z = -1; z <= 1; z++) {
@@ -94,7 +90,6 @@ public class VeinMiningListener implements Listener {
                         Block neighbor = current.getRelative(x, y, z);
                         if (visited.contains(neighbor)) continue;
 
-                        // Check if match
                         if (neighbor.getType() == targetType || areOresRelated(targetType, neighbor.getType())) {
                             queue.add(neighbor);
                             visited.add(neighbor);
