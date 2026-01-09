@@ -27,26 +27,42 @@ public class ShopMenu {
                 Material.valueOf(config.getString("shop.crop-booster.material", "BEACON")),
                 "crop-booster", config
         ));
+        
+        // 2. Chunk Loader Bot (Slot 13) - NEW
+        gui.setItem(13, createIcon(
+                Material.valueOf(config.getString("shop.chunk-loader.material", "ARMOR_STAND")),
+                "chunk-loader", config
+        ));
 
-        // 2. Harvester Hoe (Slot 15)
+        // 3. Harvester Hoe (Slot 15)
         gui.setItem(15, createIcon(
                 Material.valueOf(config.getString("shop.harvester-hoe.material", "DIAMOND_HOE")),
                 "harvester-hoe", config
         ));
+
+        // Optional: Fill empty slots with glass
+        ItemStack glass = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        ItemMeta gMeta = glass.getItemMeta();
+        gMeta.displayName(Component.text(" "));
+        glass.setItemMeta(gMeta);
+        
+        for (int i = 0; i < 27; i++) {
+            if (gui.getItem(i) == null) gui.setItem(i, glass);
+        }
 
         player.openInventory(gui);
     }
 
     private static ItemStack createIcon(Material mat, String key, FileConfiguration config) {
         String path = "shop." + key;
-        String name = config.getString(path + ".name");
-        int price = config.getInt(path + ".price");
-        String desc = config.getString(path + ".description");
+        String name = config.getString(path + ".name", "Unknown Item").replace("&", "§");
+        int price = config.getInt(path + ".price", 0);
+        String desc = config.getString(path + ".description", "").replace("&", "§");
 
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
         
-        meta.displayName(Component.text(name, NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
+        meta.displayName(Component.text(name).decoration(TextDecoration.ITALIC, false));
         meta.lore(Arrays.asList(
                 Component.text(desc, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
                 Component.empty(),
