@@ -1,7 +1,7 @@
 package tlz.hisamc.hisaecm.listeners;
 
 import io.papermc.paper.event.player.AsyncChatEvent;
-import me.clip.placeholderapi.PlaceholderAPI; // Import PAPI
+import me.clip.placeholderapi.PlaceholderAPI;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -10,6 +10,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import tlz.hisamc.hisaecm.HisaECM;
 import tlz.hisamc.hisaecm.gui.BountyMenu;
@@ -50,15 +51,7 @@ public class BountyListener implements Listener {
         }
 
         if (state.equals("PLACE_AMOUNT")) {
-            try {
-                double amount = Double.parseDouble(message);
-                if (amount <= 0) throw new NumberFormatException();
-                String target = tempTarget.get(player.getUniqueId());
-                processTransaction(player, target, amount);
-            } catch (NumberFormatException e) {
-                player.sendMessage(Component.text("Invalid number. Cancelled.", NamedTextColor.RED));
-            }
-            clearState(player);
+            processInput(player, message, "PLACE");
             return;
         }
 
@@ -75,42 +68,50 @@ public class BountyListener implements Listener {
         }
 
         if (state.equals("RAISE_AMOUNT")) {
-            try {
-                double amount = Double.parseDouble(message);
-                if (amount <= 0) throw new NumberFormatException();
-                String target = tempTarget.get(player.getUniqueId());
-                processTransaction(player, target, amount);
-            } catch (NumberFormatException e) {
-                player.sendMessage(Component.text("Invalid number. Cancelled.", NamedTextColor.RED));
-            }
-            clearState(player);
+            processInput(player, message, "RAISE");
         }
+    }
+
+    private void processInput(Player player, String message, String type) {
+        try {
+            double amount = Double.parseDouble(message);
+
+            // --- CRASH PREVENTION (Not Grief Prevention) ---
+            if (Double.isInfinite(amount) || Double.isNaN(amount) || amount > 1_000_000_000) {
+                player.sendMessage(Component.text("Invalid amount (Max 1 Billion).", NamedTextColor.RED));
+                clearState(player);
+                return;
+            }
+            if (amount <= 0) throw new NumberFormatException();
+            // -----------------------------------------------
+
+            String target = tempTarget.get(player.getUniqueId());
+            processTransaction(player, target, amount);
+        } catch (NumberFormatException e) {
+            player.sendMessage(Component.text("Invalid number. Cancelled.", NamedTextColor.RED));
+        }
+        clearState(player);
     }
 
     private void processTransaction(Player player, String target, double amount) {
         Bukkit.getGlobalRegionScheduler().execute(plugin, () -> {
-            // --- SECURITY CHECK START ---
             if (!hasEnoughShards(player, amount)) {
                 player.sendMessage(Component.text("You do not have enough Shards!", NamedTextColor.RED));
                 return;
             }
-            // --- SECURITY CHECK END ---
 
             String cmd = "eco take shards " + player.getName() + " " + amount;
             Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
 
             manager.addBounty(target, amount);
             player.sendMessage(Component.text("Bounty placed/raised successfully!", NamedTextColor.GREEN));
-            
             Bukkit.broadcast(Component.text(player.getName() + " placed a " + amount + " shard bounty on " + target + "!", NamedTextColor.RED));
-            
             BountyMenu.open(player, 0);
         });
     }
 
     private boolean hasEnoughShards(Player player, double amount) {
         try {
-            // Strip non-numeric chars (commas, currency symbols)
             String b = PlaceholderAPI.setPlaceholders(player, BALANCE_PLACEHOLDER).replaceAll("[^0-9.]", "");
             return !b.isEmpty() && Double.parseDouble(b) >= amount;
         } catch (Exception e) { return false; }
@@ -120,8 +121,15 @@ public class BountyListener implements Listener {
         inputState.remove(player.getUniqueId());
         tempTarget.remove(player.getUniqueId());
     }
-
+    
     @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        UUID uuid = event.getPlayer().getUniqueId();
+        inputState.remove(uuid);
+        tempTarget.remove(uuid);
+    }
+
+    @EventHandler 
     public void onDeath(PlayerDeathEvent event) {
         Player victim = event.getEntity();
         Player killer = victim.getKiller();

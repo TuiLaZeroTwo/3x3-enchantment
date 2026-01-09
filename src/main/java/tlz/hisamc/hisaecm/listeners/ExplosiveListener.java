@@ -16,7 +16,7 @@ import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import tlz.hisamc.hisaecm.HisaECM;
-import tlz.hisamc.hisaecm.util.DropsHandler; // Import Handler
+import tlz.hisamc.hisaecm.util.DropsHandler;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -57,7 +57,7 @@ public class ExplosiveListener implements Listener {
             // Randomize scattering
             if (random.nextInt(100) > 60) continue; 
 
-            // USE DROPS HANDLER HERE
+            // NO PROTECTION CHECKS - ALLOW DESTRUCTION
             DropsHandler.handleBreak(player, target, tool);
 
             if (random.nextBoolean()) applyDurability(player, tool);
@@ -80,7 +80,6 @@ public class ExplosiveListener implements Listener {
     }
 
     private void applyDurability(Player player, ItemStack tool) {
-        // (Same durability logic as MiningListener)
         if (player.getGameMode() == org.bukkit.GameMode.CREATIVE) return;
         ItemMeta meta = tool.getItemMeta();
         if (meta instanceof Damageable d) {

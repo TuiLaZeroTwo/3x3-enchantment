@@ -76,8 +76,10 @@ public class VeinMiningListener implements Listener {
             Block current = queue.poll();
 
             if (!current.equals(start)) {
-                if (!current.getType().equals(targetType) && !areOresRelated(targetType, current.getType())) continue;
-                
+                BlockBreakEvent checkEvent = new BlockBreakEvent(current, player);
+                org.bukkit.Bukkit.getPluginManager().callEvent(checkEvent);
+                if (checkEvent.isCancelled()) continue;
+
                 current.breakNaturally(tool);
                 broken++;
             }

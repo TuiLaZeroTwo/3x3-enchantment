@@ -18,7 +18,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import tlz.hisamc.hisaecm.HisaECM;
 import tlz.hisamc.hisaecm.util.ChunkLoaderManager;
-import tlz.hisamc.hisaecm.gui.LoaderMenu; // FIX: Added Import
+import tlz.hisamc.hisaecm.gui.LoaderMenu;
 
 public class ChunkLoaderListener implements Listener {
 
@@ -26,7 +26,6 @@ public class ChunkLoaderListener implements Listener {
     private final ChunkLoaderManager manager;
     public static final NamespacedKey KEY_LOADER_BOT = new NamespacedKey("hisaecm", "loader_bot");
 
-    // FIX: Updated constructor to accept the manager passed from HisaECM
     public ChunkLoaderListener(HisaECM plugin, ChunkLoaderManager manager) {
         this.plugin = plugin;
         this.manager = manager;
@@ -53,6 +52,17 @@ public class ChunkLoaderListener implements Listener {
                 return;
             }
 
+            // --- LAG PREVENTION (Not Grief Prevention) ---
+            long nearbyLoaders = spawnLoc.getWorld().getNearbyEntities(spawnLoc, 16, 16, 16).stream()
+                .filter(e -> e instanceof ArmorStand && e.getPersistentDataContainer().has(KEY_LOADER_BOT, PersistentDataType.INTEGER))
+                .count();
+
+            if (nearbyLoaders >= 1) {
+                player.sendMessage(Component.text("Limit reached: 1 Chunk Loader per 16 blocks.", NamedTextColor.RED));
+                return;
+            }
+            // --------------------------------------------
+
             ArmorStand bot = (ArmorStand) spawnLoc.getWorld().spawnEntity(spawnLoc, EntityType.ARMOR_STAND);
             bot.setGravity(false);
             bot.setSmall(true);
@@ -76,10 +86,7 @@ public class ChunkLoaderListener implements Listener {
         event.setCancelled(true);
         Player player = event.getPlayer();
         
-        // FIX: Use 'Long' (capital L) to allow null checks
         Long expiry = manager.getExpiry(entity.getLocation());
-        
-        // FIX: Now the check (expiry != null) is valid
         LoaderMenu.open(player, entity.getLocation(), expiry != null ? expiry : System.currentTimeMillis());
     }
 
@@ -90,11 +97,7 @@ public class ChunkLoaderListener implements Listener {
         if (!entity.getPersistentDataContainer().has(KEY_LOADER_BOT, PersistentDataType.INTEGER)) return;
 
         if (event.getDamager() instanceof Player player) {
-            // Prevent accidental breaking. Use the GUI to pickup.
             event.setCancelled(true);
-            
-            // Allow picking up via GUI logic (handled in LoaderGuiListener), 
-            // but just in case they try to punch it:
             player.sendMessage(Component.text("Right-click to open menu and pickup!", NamedTextColor.YELLOW));
         }
     }
