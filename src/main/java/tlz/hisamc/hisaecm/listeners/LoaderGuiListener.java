@@ -2,16 +2,13 @@ package tlz.hisamc.hisaecm.listeners;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Bukkit;
-import org.bukkit.Location;
-import org.bukkit.Material;
+import org.bukkit.*;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.inventory.InventoryDragEvent; // Fix: Import Drag Event
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
@@ -34,16 +31,14 @@ public class LoaderGuiListener implements Listener {
     @EventHandler
     public void onClick(InventoryClickEvent event) {
         if (!event.getView().title().equals(LoaderMenu.TITLE)) return;
-        event.setCancelled(true); // Stop taking items
+        event.setCancelled(true);
         if (event.getCurrentItem() == null) return;
 
         Player player = (Player) event.getWhoClicked();
-        // Prevent clicking in own inventory from doing anything weird
-        if (event.getClickedInventory() == player.getInventory()) return; 
-
         int slot = event.getSlot();
 
-        ItemStack info = event.getInventory().getItem(13);
+        // 1. Retrieve Location from the Info Item (Now Slot 4)
+        ItemStack info = event.getInventory().getItem(4);
         if (info == null || !info.hasItemMeta()) return;
         ItemMeta im = info.getItemMeta();
 
@@ -56,11 +51,19 @@ public class LoaderGuiListener implements Listener {
 
         Location loc = new Location(Bukkit.getWorld(worldName), x, y, z);
 
-        // --- FUEL BUTTONS ---
+        // --- BUTTON LOGIC ---
+
         if (slot == 11) addFuel(player, loc, 1, 10800000L);
         else if (slot == 15) addFuel(player, loc, 8, 86400000L);
 
-        // --- PICKUP BUTTON (Slot 22) ---
+        // --- SHOW RADIUS (Slot 13) ---
+        else if (slot == 13) {
+            player.closeInventory();
+            player.sendMessage(Component.text("Showing loaded chunk borders...", NamedTextColor.AQUA));
+            showChunkBorders(player, loc);
+        }
+
+        // --- PICKUP (Slot 22) ---
         else if (slot == 22) {
             player.closeInventory();
             manager.removeLoader(loc);
@@ -72,11 +75,9 @@ public class LoaderGuiListener implements Listener {
                 }
             }
 
-            // Give Item Back Safely
             ItemStack item = new ItemStack(Material.ARMOR_STAND);
             item.editMeta(meta -> meta.displayName(Component.text("§b§lChunkLoader Bot")));
             
-            // FIX: Check if inventory is full
             HashMap<Integer, ItemStack> overflow = player.getInventory().addItem(item);
             if (!overflow.isEmpty()) {
                 player.getWorld().dropItem(player.getLocation(), item);
@@ -84,14 +85,6 @@ public class LoaderGuiListener implements Listener {
             } else {
                 player.sendMessage(Component.text("ChunkLoader Bot picked up.", NamedTextColor.YELLOW));
             }
-        }
-    }
-
-    // --- SECURITY FIX: Prevent Menu Stealing via Dragging ---
-    @EventHandler
-    public void onDrag(InventoryDragEvent event) {
-        if (event.getView().title().equals(LoaderMenu.TITLE)) {
-            event.setCancelled(true);
         }
     }
 
@@ -103,6 +96,31 @@ public class LoaderGuiListener implements Listener {
             LoaderMenu.open(player, loc, manager.getExpiry(loc));
         } else {
             player.sendMessage(Component.text("You need " + cost + " Coal Blocks for this!", NamedTextColor.RED));
+        }
+    }
+
+    private void showChunkBorders(Player player, Location center) {
+        Chunk chunk = center.getChunk();
+        int minX = chunk.getX() * 16;
+        int minZ = chunk.getZ() * 16;
+        int y = (int) player.getY();
+
+        // Run a task 10 times (every 10 ticks = 0.5s) to pulse the border
+        for (int i = 0; i < 10; i++) {
+            Bukkit.getGlobalRegionScheduler().runDelayed(plugin, (task) -> {
+                if (!player.isOnline()) return;
+                
+                World w = player.getWorld();
+                Particle.DustOptions dust = new Particle.DustOptions(Color.AQUA, 1.0f);
+
+                // Draw Square Border
+                for (int d = 0; d <= 16; d += 2) {
+                    w.spawnParticle(Particle.REDSTONE, minX + d, y, minZ, 1, dust);       // North Edge
+                    w.spawnParticle(Particle.REDSTONE, minX + d, y, minZ + 16, 1, dust);  // South Edge
+                    w.spawnParticle(Particle.REDSTONE, minX, y, minZ + d, 1, dust);       // West Edge
+                    w.spawnParticle(Particle.REDSTONE, minX + 16, y, minZ + d, 1, dust);  // East Edge
+                }
+            }, i * 10L);
         }
     }
 }

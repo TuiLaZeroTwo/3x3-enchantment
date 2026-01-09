@@ -12,7 +12,6 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
-import tlz.hisamc.hisaecm.listeners.ChunkLoaderListener;
 
 import java.util.Arrays;
 import java.util.List;
@@ -28,8 +27,8 @@ public class LoaderMenu {
     public static void open(Player player, Location loc, long expiryTime) {
         Inventory gui = Bukkit.createInventory(null, 27, TITLE);
 
-        // --- 1. INFO ICON (Center) ---
-        ItemStack info = new ItemStack(Material.ENDER_EYE);
+        // --- 1. INFO ICON (Moved to Slot 4 / Top Center) ---
+        ItemStack info = new ItemStack(Material.PAPER);
         ItemMeta iMeta = info.getItemMeta();
         iMeta.displayName(Component.text("Loader Status", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
         
@@ -44,20 +43,23 @@ public class LoaderMenu {
             Component.text("Chunk: " + loc.getChunk().getX() + ", " + loc.getChunk().getZ(), NamedTextColor.DARK_GRAY)
         ));
 
-        // Store Location in PDC so the Listener knows which bot to update
+        // Store Location Data on the Info Item
         iMeta.getPersistentDataContainer().set(KEY_LOC_X, PersistentDataType.INTEGER, loc.getBlockX());
         iMeta.getPersistentDataContainer().set(KEY_LOC_Y, PersistentDataType.INTEGER, loc.getBlockY());
         iMeta.getPersistentDataContainer().set(KEY_LOC_Z, PersistentDataType.INTEGER, loc.getBlockZ());
         iMeta.getPersistentDataContainer().set(KEY_WORLD, PersistentDataType.STRING, loc.getWorld().getName());
         
         info.setItemMeta(iMeta);
-        gui.setItem(13, info);
+        gui.setItem(4, info);
 
         // --- 2. FUEL OPTIONS ---
         gui.setItem(11, createItem(Material.COAL, "&eAdd 3 Hours", Arrays.asList("&7Cost: &f1 Coal Block")));
         gui.setItem(15, createItem(Material.COAL_BLOCK, "&6Add 24 Hours", Arrays.asList("&7Cost: &f8 Coal Blocks", "&a&lBEST VALUE")));
 
-        // --- 3. PICKUP BUTTON ---
+        // --- 3. SHOW RADIUS (NEW - Slot 13) ---
+        gui.setItem(13, createItem(Material.ENDER_EYE, "&bShow Radius", Arrays.asList("&7Click to visualize the", "&7loaded chunk borders.")));
+
+        // --- 4. PICKUP BUTTON ---
         gui.setItem(22, createItem(Material.HOPPER, "&cPickup Bot", Arrays.asList("&7Returns the bot to your inventory.")));
 
         // Fill Glass

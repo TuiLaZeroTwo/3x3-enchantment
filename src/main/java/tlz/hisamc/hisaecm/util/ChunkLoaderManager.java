@@ -25,7 +25,7 @@ public class ChunkLoaderManager {
         this.file = new File(plugin.getDataFolder(), "loaders.yml");
         load();
         
-        // Tick every 30 seconds to update visuals/status
+        // Tick every 30 seconds to update visuals
         Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, (task) -> tick(), 20L * 30L, 20L * 30L);
     }
 
@@ -45,12 +45,23 @@ public class ChunkLoaderManager {
 
     public void addTime(Location loc, long millis) {
         long current = loaders.getOrDefault(loc, System.currentTimeMillis());
-        // If currently out of fuel, start fresh from NOW
-        if (current < System.currentTimeMillis()) current = System.currentTimeMillis();
+        
+        // If currently out of fuel (expired), reset start time to NOW so they get the full duration
+        if (current < System.currentTimeMillis()) {
+            current = System.currentTimeMillis();
+        }
         
         loaders.put(loc, current + millis);
         save();
-        updateVisuals(loc);
+
+        // FIX: Force wake-up the chunk immediately!
+        Bukkit.getRegionScheduler().execute(plugin, loc, () -> {
+            // 1. Re-add the ticket so the chunk loads
+            loc.getWorld().getChunkAt(loc).addPluginChunkTicket(plugin);
+            
+            // 2. Update the text immediately (nested to ensure chunk is ready)
+            updateVisualsInternal(loc);
+        });
     }
 
     public Long getExpiry(Location loc) {
@@ -66,6 +77,7 @@ public class ChunkLoaderManager {
         return false;
     }
 
+    // Global tick to refresh all loaders
     private void tick() {
         long now = System.currentTimeMillis();
 
@@ -73,45 +85,46 @@ public class ChunkLoaderManager {
             Location loc = entry.getKey();
             long expires = entry.getValue();
 
-            // Check State
             if (now > expires) {
-                // EXPIRED: Ensure ticket is removed, but DO NOT remove the bot entity (so player can find and refuel it)
+                // EXPIRED: Remove ticket so server can unload chunk if it wants
                 Bukkit.getRegionScheduler().execute(plugin, loc, () -> {
                    loc.getWorld().getChunkAt(loc).removePluginChunkTicket(plugin);
+                   // We still try to update text to say "EXPIRED" if the chunk happens to be loaded
+                   updateVisualsInternal(loc);
                 });
             } else {
                 // ACTIVE: Keep chunk loaded
                 Bukkit.getRegionScheduler().execute(plugin, loc, () -> {
-                    Chunk chunk = loc.getWorld().getChunkAt(loc);
-                    chunk.addPluginChunkTicket(plugin);
+                    loc.getWorld().getChunkAt(loc).addPluginChunkTicket(plugin);
+                    updateVisualsInternal(loc);
                 });
             }
-            
-            // Update Hologram Text
-            updateVisuals(loc);
         }
     }
 
+    // Public method that schedules the update
     private void updateVisuals(Location loc) {
-        Bukkit.getRegionScheduler().execute(plugin, loc, () -> {
-            // Only try to update if chunk is loaded to prevent lag/loading unloaded chunks
-            if (!loc.isChunkLoaded()) return; 
+        Bukkit.getRegionScheduler().execute(plugin, loc, () -> updateVisualsInternal(loc));
+    }
 
-            for (Entity e : loc.getWorld().getNearbyEntities(loc, 1, 1, 1)) {
-                if (e instanceof ArmorStand as && e.getPersistentDataContainer().has(ChunkLoaderListener.KEY_LOADER_BOT)) {
-                    long timeLeft = loaders.getOrDefault(loc, 0L) - System.currentTimeMillis();
-                    
-                    if (timeLeft > 0) {
-                        long hours = timeLeft / 3600000;
-                        long minutes = (timeLeft % 3600000) / 60000;
-                        as.customName(Component.text("§b§lChunkBot: §e" + hours + "h " + minutes + "m"));
-                    } else {
-                        // STATUS: OUT OF FUEL
-                        as.customName(Component.text("§c§lChunkBot: §4OUT OF FUEL"));
-                    }
+    // Internal logic that assumes we are already on the region thread
+    private void updateVisualsInternal(Location loc) {
+        // If chunk isn't loaded, we can't find entities.
+        if (!loc.isChunkLoaded()) return; 
+
+        for (Entity e : loc.getWorld().getNearbyEntities(loc, 1, 1, 1)) {
+            if (e instanceof ArmorStand as && e.getPersistentDataContainer().has(ChunkLoaderListener.KEY_LOADER_BOT)) {
+                long timeLeft = loaders.getOrDefault(loc, 0L) - System.currentTimeMillis();
+                
+                if (timeLeft > 0) {
+                    long hours = timeLeft / 3600000;
+                    long minutes = (timeLeft % 3600000) / 60000;
+                    as.customName(Component.text("§b§lChunkBot: §e" + hours + "h " + minutes + "m"));
+                } else {
+                    as.customName(Component.text("§c§lChunkBot: §4OUT OF FUEL"));
                 }
             }
-        });
+        }
     }
 
     private void save() {
