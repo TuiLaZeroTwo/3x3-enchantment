@@ -15,42 +15,47 @@ auto-clear:
 enchants:
   miner-3x3:
     name: "3x3 Mining"
-    price: 5000
+    price: 8500
     description: "Mines a 3x3 area. (Mutually Exclusive)"
   explosive:
     name: "Explosive"
-    price: 8000
+    price: 10000
     description: "Random diamond explosion. (Mutually Exclusive)"
     chance: 20
   vein-miner:
     name: "Vein Miner"
-    price: 10000
+    price: 12000
     description: "Mines entire veins. (Mutually Exclusive)"
   haste:
     name: "Haste Aura"
-    price: 3000
+    price: 4500
     description: "Grants Haste II."
   auto-smelt:
     name: "Auto Smelt"
-    price: 4000
+    price: 2800
     description: "Automatically smelts ores."
   telekinesis:
     name: "Telekinesis"
-    price: 2000
+    price: 2200
     description: "Drops go to inventory."
 
 shop:
   crop-booster:
     name: "Crop Booster"
-    price: 15000
+    price: 3500
     description: "Boosts crops for 4 hours!"
     material: BEACON
     duration-seconds: 14400
     multiplier: 2.5
   
-  # NEW ITEM
   harvester-hoe:
     name: "Harvester Hoe"
-    price: 10000
+    price: 8500
     description: "Auto-replants crops and collects drops."
     material: DIAMOND_HOE
+
+  chunk-loader:
+    name: "&b&lChunkLoader Bot"
+    price: 25000
+    description: "Keeps the chunk loaded!"
+    material: ARMOR_STAND
