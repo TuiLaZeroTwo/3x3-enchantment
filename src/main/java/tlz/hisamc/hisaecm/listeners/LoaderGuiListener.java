@@ -2,20 +2,22 @@ package tlz.hisamc.hisaecm.listeners;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.*;
-import org.bukkit.entity.ArmorStand;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.util.Transformation;
+import org.joml.Vector3f;
 import tlz.hisamc.hisaecm.HisaECM;
 import tlz.hisamc.hisaecm.gui.LoaderMenu;
 import tlz.hisamc.hisaecm.util.ChunkLoaderManager;
 
+import java.util.Collections;
 import java.util.HashMap;
 
 public class LoaderGuiListener implements Listener {
@@ -47,41 +49,60 @@ public class LoaderGuiListener implements Listener {
         Integer z = im.getPersistentDataContainer().get(LoaderMenu.KEY_LOC_Z, PersistentDataType.INTEGER);
 
         if (worldName == null || x == null) return;
-
         Location loc = new Location(Bukkit.getWorld(worldName), x, y, z);
 
-        // --- BUTTON LOGIC ---
-
+        // --- BUTTONS ---
         if (slot == 11) addFuel(player, loc, 1, 10800000L);
         else if (slot == 15) addFuel(player, loc, 8, 86400000L);
-
-        // --- SHOW RADIUS (Slot 13) ---
         else if (slot == 13) {
             player.closeInventory();
-            player.sendMessage(Component.text("Showing loaded chunk borders...", NamedTextColor.AQUA));
             showChunkBorders(player, loc);
         }
 
-        // --- PICKUP (Slot 22) ---
+        // --- PICKUP (Save Time Logic) ---
         else if (slot == 22) {
             player.closeInventory();
-            manager.removeLoader(loc);
             
+            // 1. Calculate Remaining Time
+            Long expiry = manager.getExpiry(loc);
+            long timeLeft = 0;
+            if (expiry != null && expiry > System.currentTimeMillis()) {
+                timeLeft = expiry - System.currentTimeMillis();
+            }
+
+            // 2. Remove from DB/World
+            manager.removeLoader(loc);
             for (Entity e : loc.getWorld().getNearbyEntities(loc, 1, 1, 1)) {
                 if (e instanceof ArmorStand && e.getPersistentDataContainer().has(ChunkLoaderListener.KEY_LOADER_BOT)) {
                     e.remove();
                 }
             }
 
+            // 3. Create Item with Stored Time
             ItemStack item = new ItemStack(Material.ARMOR_STAND);
-            item.editMeta(meta -> meta.displayName(Component.text("§b§lChunkLoader Bot")));
+            long finalTimeLeft = timeLeft;
             
+            item.editMeta(meta -> {
+                meta.displayName(Component.text("§b§lChunkLoader Bot").decoration(TextDecoration.ITALIC, false));
+                if (finalTimeLeft > 0) {
+                    // Save exact milliseconds to PDC
+                    meta.getPersistentDataContainer().set(ChunkLoaderListener.KEY_STORED_TIME, PersistentDataType.LONG, finalTimeLeft);
+                    
+                    long hours = finalTimeLeft / 3600000;
+                    long mins = (finalTimeLeft % 3600000) / 60000;
+                    meta.lore(Collections.singletonList(
+                        Component.text("§7Fuel Stored: §e" + hours + "h " + mins + "m").decoration(TextDecoration.ITALIC, false)
+                    ));
+                }
+            });
+
+            // 4. Give Item
             HashMap<Integer, ItemStack> overflow = player.getInventory().addItem(item);
             if (!overflow.isEmpty()) {
                 player.getWorld().dropItem(player.getLocation(), item);
-                player.sendMessage(Component.text("Inventory full! Item dropped on ground.", NamedTextColor.RED));
+                player.sendMessage(Component.text("Inventory full! Item dropped.", NamedTextColor.RED));
             } else {
-                player.sendMessage(Component.text("ChunkLoader Bot picked up.", NamedTextColor.YELLOW));
+                player.sendMessage(Component.text("Picked up! Stored fuel preserved.", NamedTextColor.GREEN));
             }
         }
     }
@@ -98,29 +119,23 @@ public class LoaderGuiListener implements Listener {
     }
 
     private void showChunkBorders(Player player, Location center) {
+        // (Existing display entity logic...)
         Chunk chunk = center.getChunk();
         int minX = chunk.getX() * 16;
         int minZ = chunk.getZ() * 16;
-        
-        int py = player.getLocation().getBlockY() + 1; 
+        double y = player.getLocation().getY();
+        Location origin = new Location(player.getWorld(), minX, y, minZ);
 
-        for (int i = 0; i < 10; i++) {
-            long delay = (i * 10L) + 1L; 
-
-            Bukkit.getGlobalRegionScheduler().runDelayed(plugin, (task) -> {
-                if (!player.isOnline()) return;
-                
-                World w = player.getWorld();
-                Particle.DustOptions dust = new Particle.DustOptions(Color.AQUA, 1.0f);
-
-                // FIX: Use Particle.REDSTONE for colored dust (DUST is for newer versions)
-                for (int d = 0; d <= 16; d += 1) {
-                    w.spawnParticle(Particle.REDSTONE, minX + d, py, minZ, 1, dust);
-                    w.spawnParticle(Particle.REDSTONE, minX + d, py, minZ + 16, 1, dust);
-                    w.spawnParticle(Particle.REDSTONE, minX, py, minZ + d, 1, dust);
-                    w.spawnParticle(Particle.REDSTONE, minX + 16, py, minZ + d, 1, dust);
-                }
-            }, delay);
-        }
+        Bukkit.getRegionScheduler().execute(plugin, origin, () -> {
+            BlockDisplay display = (BlockDisplay) origin.getWorld().spawnEntity(origin, EntityType.BLOCK_DISPLAY);
+            display.setBlock(Material.LIGHT_BLUE_STAINED_GLASS.createBlockData());
+            display.setTransformation(new Transformation(
+                new Vector3f(0, 0, 0), new org.joml.Quaternionf(),
+                new Vector3f(16f, 0.1f, 16f), new org.joml.Quaternionf()
+            ));
+            display.setGlowing(true);
+            display.setGlowColorOverride(Color.AQUA); 
+            Bukkit.getRegionScheduler().runDelayed(plugin, origin, (task) -> display.remove(), 100L);
+        });
     }
 }

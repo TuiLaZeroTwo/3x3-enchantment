@@ -5,7 +5,6 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.ArmorStand;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -25,6 +24,7 @@ public class ChunkLoaderListener implements Listener {
     private final HisaECM plugin;
     private final ChunkLoaderManager manager;
     public static final NamespacedKey KEY_LOADER_BOT = new NamespacedKey("hisaecm", "loader_bot");
+    public static final NamespacedKey KEY_STORED_TIME = new NamespacedKey("hisaecm", "loader_stored_time");
 
     public ChunkLoaderListener(HisaECM plugin, ChunkLoaderManager manager) {
         this.plugin = plugin;
@@ -52,7 +52,7 @@ public class ChunkLoaderListener implements Listener {
                 return;
             }
 
-            // --- LAG PREVENTION (Not Grief Prevention) ---
+            // --- CHECK LIMIT ---
             long nearbyLoaders = spawnLoc.getWorld().getNearbyEntities(spawnLoc, 16, 16, 16).stream()
                 .filter(e -> e instanceof ArmorStand && e.getPersistentDataContainer().has(KEY_LOADER_BOT, PersistentDataType.INTEGER))
                 .count();
@@ -61,40 +61,53 @@ public class ChunkLoaderListener implements Listener {
                 player.sendMessage(Component.text("Limit reached: 1 Chunk Loader per 16 blocks.", NamedTextColor.RED));
                 return;
             }
-            // --------------------------------------------
 
+            // --- SPAWN BOT ---
             ArmorStand bot = (ArmorStand) spawnLoc.getWorld().spawnEntity(spawnLoc, EntityType.ARMOR_STAND);
             bot.setGravity(false);
             bot.setSmall(true);
             bot.setCustomNameVisible(true);
-            bot.customName(Component.text("§c§lChunkBot: §4NO FUEL"));
             bot.getEquipment().setHelmet(new ItemStack(Material.GOLD_BLOCK)); 
             bot.getPersistentDataContainer().set(KEY_LOADER_BOT, PersistentDataType.INTEGER, 1);
             
-            manager.addLoader(spawnLoc);
+            // --- APPLY STORED TIME ---
+            manager.addLoader(spawnLoc); // Init (0 time)
+            
+            long storedTime = 0;
+            if (item.getItemMeta().getPersistentDataContainer().has(KEY_STORED_TIME, PersistentDataType.LONG)) {
+                storedTime = item.getItemMeta().getPersistentDataContainer().get(KEY_STORED_TIME, PersistentDataType.LONG);
+                manager.addTime(spawnLoc, storedTime);
+            }
+
+            // Set Name based on time
+            if (storedTime > 0) {
+                 long hours = storedTime / 3600000;
+                 bot.customName(Component.text("§b§lChunkBot: §e" + hours + "h"));
+                 player.sendMessage(Component.text("ChunkLoader placed with " + hours + " hours of fuel retained!", NamedTextColor.GREEN));
+            } else {
+                 bot.customName(Component.text("§c§lChunkBot: §4NO FUEL"));
+                 player.sendMessage(Component.text("ChunkLoader Bot placed! Right click to configure.", NamedTextColor.GREEN));
+            }
+
             item.setAmount(item.getAmount() - 1);
-            player.sendMessage(Component.text("ChunkLoader Bot placed! Right click to configure.", NamedTextColor.GREEN));
         }
     }
 
     @EventHandler
     public void onInteractBot(PlayerInteractAtEntityEvent event) {
-        Entity entity = event.getRightClicked();
-        if (!(entity instanceof ArmorStand)) return;
-        if (!entity.getPersistentDataContainer().has(KEY_LOADER_BOT, PersistentDataType.INTEGER)) return;
+        if (!(event.getRightClicked() instanceof ArmorStand)) return;
+        ArmorStand as = (ArmorStand) event.getRightClicked();
+        if (!as.getPersistentDataContainer().has(KEY_LOADER_BOT, PersistentDataType.INTEGER)) return;
 
         event.setCancelled(true);
-        Player player = event.getPlayer();
-        
-        Long expiry = manager.getExpiry(entity.getLocation());
-        LoaderMenu.open(player, entity.getLocation(), expiry != null ? expiry : System.currentTimeMillis());
+        Long expiry = manager.getExpiry(as.getLocation());
+        LoaderMenu.open(event.getPlayer(), as.getLocation(), expiry != null ? expiry : System.currentTimeMillis());
     }
 
     @EventHandler
     public void onBreakBot(EntityDamageByEntityEvent event) {
-        Entity entity = event.getEntity();
-        if (!(entity instanceof ArmorStand)) return;
-        if (!entity.getPersistentDataContainer().has(KEY_LOADER_BOT, PersistentDataType.INTEGER)) return;
+        if (!(event.getEntity() instanceof ArmorStand)) return;
+        if (!event.getEntity().getPersistentDataContainer().has(KEY_LOADER_BOT, PersistentDataType.INTEGER)) return;
 
         if (event.getDamager() instanceof Player player) {
             event.setCancelled(true);

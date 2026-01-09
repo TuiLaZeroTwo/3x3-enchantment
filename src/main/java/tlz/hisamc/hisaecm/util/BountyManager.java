@@ -1,57 +1,90 @@
 package tlz.hisamc.hisaecm.util;
 
-import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.Bukkit;
 import tlz.hisamc.hisaecm.HisaECM;
 
-import java.io.File;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap; // Fix: Thread-safe map
 
 public class BountyManager {
 
     private final HisaECM plugin;
-    private final File file;
-    // FIX: Use ConcurrentHashMap for Thread Safety on Folia
-    private final Map<String, Double> bounties = new ConcurrentHashMap<>();
+    private final DatabaseManager db;
 
-    public BountyManager(HisaECM plugin) {
+    public BountyManager(HisaECM plugin, DatabaseManager db) {
         this.plugin = plugin;
-        this.file = new File(plugin.getDataFolder(), "bounties.yml");
-        loadBounties();
+        this.db = db;
     }
 
-    public void addBounty(String targetName, double amount) {
-        bounties.merge(targetName, amount, Double::sum); // Atomic update
-        saveBounties();
+    public double getBounty(String playerName) {
+        String query = "SELECT amount FROM bounties WHERE target = ?";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(query)) {
+            ps.setString(1, playerName);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getDouble("amount");
+        } catch (SQLException e) { e.printStackTrace(); }
+        return 0;
     }
 
-    public void removeBounty(String targetName) {
-        bounties.remove(targetName);
-        saveBounties();
-    }
-
-    public double getBounty(String targetName) {
-        return bounties.getOrDefault(targetName, 0.0);
-    }
-
+    // --- FIX: Added method for GUI ---
     public Map<String, Double> getAllBounties() {
-        return bounties;
+        Map<String, Double> map = new LinkedHashMap<>();
+        String query = "SELECT target, amount FROM bounties ORDER BY amount DESC";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(query)) {
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                map.put(rs.getString("target"), rs.getDouble("amount"));
+            }
+        } catch (SQLException e) { e.printStackTrace(); }
+        return map;
     }
 
-    // FIX: Synchronized to prevent file corruption
-    public synchronized void saveBounties() {
-        YamlConfiguration yaml = new YamlConfiguration();
-        for (Map.Entry<String, Double> entry : bounties.entrySet()) {
-            yaml.set(entry.getKey(), entry.getValue());
-        }
-        try { yaml.save(file); } catch (Exception e) { e.printStackTrace(); }
+    public void addBounty(String playerName, double amountToAdd) {
+        double current = getBounty(playerName);
+        double newAmount = current + amountToAdd;
+        
+        Bukkit.getGlobalRegionScheduler().execute(plugin, () -> {
+            String query = "INSERT OR REPLACE INTO bounties (target, amount) VALUES (?, ?)";
+            try (Connection conn = db.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(query)) {
+                ps.setString(1, playerName);
+                ps.setDouble(2, newAmount);
+                ps.executeUpdate();
+            } catch (SQLException e) { e.printStackTrace(); }
+        });
     }
 
-    private synchronized void loadBounties() {
-        if (!file.exists()) return;
-        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
-        for (String key : yaml.getKeys(false)) {
-            bounties.put(key, yaml.getDouble(key));
-        }
+    public void removeBounty(String playerName) {
+        Bukkit.getGlobalRegionScheduler().execute(plugin, () -> {
+            String query = "DELETE FROM bounties WHERE target = ?";
+            try (Connection conn = db.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(query)) {
+                ps.setString(1, playerName);
+                ps.executeUpdate();
+            } catch (SQLException e) { e.printStackTrace(); }
+        });
     }
+    
+    // For Top Leaderboards
+    public Map<String, Double> getTopBounties(int limit) {
+        Map<String, Double> top = new LinkedHashMap<>();
+        String query = "SELECT target, amount FROM bounties ORDER BY amount DESC LIMIT ?";
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(query)) {
+            ps.setInt(1, limit);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                top.put(rs.getString("target"), rs.getDouble("amount"));
+            }
+        } catch (SQLException e) { e.printStackTrace(); }
+        return top;
+    }
+
+    public void saveBounties() {} 
 }

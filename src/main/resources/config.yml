@@ -1,3 +1,17 @@
+# -------------------------------------------------------------------------
+# DATABASE SETTINGS
+# -------------------------------------------------------------------------
+database:
+  # Options: sqlite, mysql
+  type: sqlite
+  
+  # MySQL Settings (Only used if type is 'mysql')
+  host: localhost
+  port: 3306
+  database: minecraft
+  username: root
+  password: ""
+  ssl: false
 
 # -------------------------------------------------------------------------
 # AUTO CLEAR SETTINGS (Lag Removal)
@@ -7,55 +21,59 @@ auto-clear:
   interval-seconds: 7200    # 2 Hours (7200 seconds)
   ignore-named-items: true  # If true, items with custom names (God sets) won't be cleared.
   warnings: [60, 30, 10, 5, 4, 3, 2, 1]
-  messages:
+  messages:s
     prefix: "&8[&c&lAutoClear&8] "
     warning: "&7Removed dropped items in &c%time% &7seconds!"
-    cleared: "&aRemoved &f%amount% &aitems from the ground!"# Hisa-ECM Configuration
+    cleared: "&aRemoved &f%amount% &aitems from the ground!"
+
+# -------------------------------------------------------------------------
+# HISA-ECM CONFIGURATION
+# -------------------------------------------------------------------------
 
 enchants:
   miner-3x3:
-    name: "3x3 Mining"
+    name: "&6&l3x3 Mining"
     price: 8500
-    description: "Mines a 3x3 area. (Mutually Exclusive)"
+    description: "&7Mines a &f3x3 area&7. &8(Mutually Exclusive)"
   explosive:
-    name: "Explosive"
+    name: "&c&lExplosive"
     price: 10000
-    description: "Random diamond explosion. (Mutually Exclusive)"
+    description: "&7Chance to causse a &cblast&7 when mining. &8(Mutually Exclusive)"
     chance: 20
   vein-miner:
-    name: "Vein Miner"
+    name: "&a&lVein Miner"
     price: 12000
-    description: "Mines entire veins. (Mutually Exclusive)"
+    description: "&7Mines entire &fveins&7 instantly. &8(Mutually Exclusive)"
   haste:
-    name: "Haste Aura"
+    name: "&e&lHaste Aura"
     price: 4500
-    description: "Grants Haste II."
+    description: "&7Grants permanent &eHaste II&7."
   auto-smelt:
-    name: "Auto Smelt"
+    name: "&6&lAuto Smelt"
     price: 2800
-    description: "Automatically smelts ores."
+    description: "&7Automatically &6smelts &7ores into ingots."
   telekinesis:
-    name: "Telekinesis"
+    name: "&d&lTelekinesis"
     price: 2200
-    description: "Drops go to inventory."
+    description: "&7Drops go directly to your &finventory&7."
 
 shop:
   crop-booster:
-    name: "Crop Booster"
+    name: "&a&lCrop Booster"
     price: 3500
-    description: "Boosts crops for 4 hours!"
+    description: "&7Boosts crop growth for &f4 hours&7!"
     material: BEACON
     duration-seconds: 14400
     multiplier: 2.5
-  
+    
   harvester-hoe:
-    name: "Harvester Hoe"
-    price: 8500
-    description: "Auto-replants crops and collects drops."
+    name: "&b&lHarvester Hoe"
+    price: 7500
+    description: "&7Auto-replants crops & collects drops."
     material: DIAMOND_HOE
 
   chunk-loader:
-    name: "&b&lChunkLoader Bot"
-    price: 25000
-    description: "Keeps the chunk loaded!"
+    name: "&3&lChunkLoader Bot"
+    price: 9000
+    description: "&7Keeps the chunk &bloaded&7 while you are away!"
     material: ARMOR_STAND
