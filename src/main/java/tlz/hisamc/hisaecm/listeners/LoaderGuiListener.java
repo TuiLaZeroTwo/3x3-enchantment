@@ -37,7 +37,6 @@ public class LoaderGuiListener implements Listener {
         Player player = (Player) event.getWhoClicked();
         int slot = event.getSlot();
 
-        // 1. Retrieve Location from the Info Item (Now Slot 4)
         ItemStack info = event.getInventory().getItem(4);
         if (info == null || !info.hasItemMeta()) return;
         ItemMeta im = info.getItemMeta();
@@ -68,7 +67,6 @@ public class LoaderGuiListener implements Listener {
             player.closeInventory();
             manager.removeLoader(loc);
             
-            // Remove Entity
             for (Entity e : loc.getWorld().getNearbyEntities(loc, 1, 1, 1)) {
                 if (e instanceof ArmorStand && e.getPersistentDataContainer().has(ChunkLoaderListener.KEY_LOADER_BOT)) {
                     e.remove();
@@ -103,24 +101,26 @@ public class LoaderGuiListener implements Listener {
         Chunk chunk = center.getChunk();
         int minX = chunk.getX() * 16;
         int minZ = chunk.getZ() * 16;
-        int y = (int) player.getY();
+        
+        int py = player.getLocation().getBlockY() + 1; 
 
-        // Run a task 10 times (every 10 ticks = 0.5s) to pulse the border
         for (int i = 0; i < 10; i++) {
+            long delay = (i * 10L) + 1L; 
+
             Bukkit.getGlobalRegionScheduler().runDelayed(plugin, (task) -> {
                 if (!player.isOnline()) return;
                 
                 World w = player.getWorld();
                 Particle.DustOptions dust = new Particle.DustOptions(Color.AQUA, 1.0f);
 
-                // Draw Square Border
-                for (int d = 0; d <= 16; d += 2) {
-                    w.spawnParticle(Particle.REDSTONE, minX + d, y, minZ, 1, dust);       // North Edge
-                    w.spawnParticle(Particle.REDSTONE, minX + d, y, minZ + 16, 1, dust);  // South Edge
-                    w.spawnParticle(Particle.REDSTONE, minX, y, minZ + d, 1, dust);       // West Edge
-                    w.spawnParticle(Particle.REDSTONE, minX + 16, y, minZ + d, 1, dust);  // East Edge
+                // FIX: Use Particle.REDSTONE for colored dust (DUST is for newer versions)
+                for (int d = 0; d <= 16; d += 1) {
+                    w.spawnParticle(Particle.REDSTONE, minX + d, py, minZ, 1, dust);
+                    w.spawnParticle(Particle.REDSTONE, minX + d, py, minZ + 16, 1, dust);
+                    w.spawnParticle(Particle.REDSTONE, minX, py, minZ + d, 1, dust);
+                    w.spawnParticle(Particle.REDSTONE, minX + 16, py, minZ + d, 1, dust);
                 }
-            }, i * 10L);
+            }, delay);
         }
     }
 }

@@ -2,7 +2,6 @@ package tlz.hisamc.hisaecm.util;
 
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.ArmorStand;
@@ -25,59 +24,78 @@ public class ChunkLoaderManager {
         this.file = new File(plugin.getDataFolder(), "loaders.yml");
         load();
         
-        // Tick every 30 seconds to update visuals
         Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, (task) -> tick(), 20L * 30L, 20L * 30L);
     }
 
+    private Location findStoredLocation(Location query) {
+        for (Location stored : loaders.keySet()) {
+            if (stored.getWorld().getName().equals(query.getWorld().getName()) &&
+                stored.getBlockX() == query.getBlockX() &&
+                stored.getBlockY() == query.getBlockY() &&
+                stored.getBlockZ() == query.getBlockZ()) {
+                return stored;
+            }
+        }
+        return null;
+    }
+
     public void addLoader(Location loc) {
+        Location existing = findStoredLocation(loc);
+        if (existing != null) loaders.remove(existing);
+
         loaders.put(loc, System.currentTimeMillis()); 
         save();
-        updateVisuals(loc);
+        updateVisuals(loc); // This calls the method below
+    }
+
+    // FIX: Method is explicitly defined here
+    private void updateVisuals(Location loc) {
+        Bukkit.getRegionScheduler().execute(plugin, loc, () -> updateVisualsInternal(loc));
     }
 
     public void removeLoader(Location loc) {
-        loaders.remove(loc);
-        Bukkit.getRegionScheduler().execute(plugin, loc, () -> {
-            loc.getWorld().getChunkAt(loc).removePluginChunkTicket(plugin);
-        });
-        save();
+        Location stored = findStoredLocation(loc);
+        if (stored != null) {
+            loaders.remove(stored);
+            Bukkit.getRegionScheduler().execute(plugin, stored, () -> {
+                if (stored.isWorldLoaded()) {
+                    stored.getWorld().getChunkAt(stored).removePluginChunkTicket(plugin);
+                }
+            });
+            save();
+        }
     }
 
-    public void addTime(Location loc, long millis) {
-        long current = loaders.getOrDefault(loc, System.currentTimeMillis());
+    public void addTime(Location queryLoc, long millis) {
+        Location stored = findStoredLocation(queryLoc);
+        Location key = (stored != null) ? stored : queryLoc;
         
-        // If currently out of fuel (expired), reset start time to NOW so they get the full duration
+        long current = loaders.getOrDefault(key, System.currentTimeMillis());
         if (current < System.currentTimeMillis()) {
             current = System.currentTimeMillis();
         }
         
-        loaders.put(loc, current + millis);
+        loaders.put(key, current + millis);
         save();
 
-        // FIX: Force wake-up the chunk immediately!
-        Bukkit.getRegionScheduler().execute(plugin, loc, () -> {
-            // 1. Re-add the ticket so the chunk loads
-            loc.getWorld().getChunkAt(loc).addPluginChunkTicket(plugin);
-            
-            // 2. Update the text immediately (nested to ensure chunk is ready)
-            updateVisualsInternal(loc);
+        Bukkit.getRegionScheduler().execute(plugin, key, () -> {
+            key.getWorld().getChunkAt(key).addPluginChunkTicket(plugin);
+            updateVisualsInternal(key);
         });
     }
 
     public Long getExpiry(Location loc) {
-        return loaders.get(loc);
+        Location stored = findStoredLocation(loc);
+        if (stored != null) {
+            return loaders.get(stored);
+        }
+        return null;
     }
 
     public boolean isLoaderAt(Location loc) {
-        for (Location l : loaders.keySet()) {
-            if (l.getBlockX() == loc.getBlockX() && l.getBlockY() == loc.getBlockY() && l.getBlockZ() == loc.getBlockZ()) {
-                return true;
-            }
-        }
-        return false;
+        return findStoredLocation(loc) != null;
     }
 
-    // Global tick to refresh all loaders
     private void tick() {
         long now = System.currentTimeMillis();
 
@@ -86,35 +104,32 @@ public class ChunkLoaderManager {
             long expires = entry.getValue();
 
             if (now > expires) {
-                // EXPIRED: Remove ticket so server can unload chunk if it wants
                 Bukkit.getRegionScheduler().execute(plugin, loc, () -> {
-                   loc.getWorld().getChunkAt(loc).removePluginChunkTicket(plugin);
-                   // We still try to update text to say "EXPIRED" if the chunk happens to be loaded
-                   updateVisualsInternal(loc);
+                   if (loc.isWorldLoaded()) {
+                       loc.getWorld().getChunkAt(loc).removePluginChunkTicket(plugin);
+                       updateVisualsInternal(loc);
+                   }
                 });
             } else {
-                // ACTIVE: Keep chunk loaded
                 Bukkit.getRegionScheduler().execute(plugin, loc, () -> {
-                    loc.getWorld().getChunkAt(loc).addPluginChunkTicket(plugin);
-                    updateVisualsInternal(loc);
+                    if (loc.isWorldLoaded()) {
+                        loc.getWorld().getChunkAt(loc).addPluginChunkTicket(plugin);
+                        updateVisualsInternal(loc);
+                    }
                 });
             }
         }
     }
 
-    // Public method that schedules the update
-    private void updateVisuals(Location loc) {
-        Bukkit.getRegionScheduler().execute(plugin, loc, () -> updateVisualsInternal(loc));
-    }
-
-    // Internal logic that assumes we are already on the region thread
     private void updateVisualsInternal(Location loc) {
-        // If chunk isn't loaded, we can't find entities.
         if (!loc.isChunkLoaded()) return; 
 
-        for (Entity e : loc.getWorld().getNearbyEntities(loc, 1, 1, 1)) {
+        for (Entity e : loc.getWorld().getNearbyEntities(loc, 1.5, 1.5, 1.5)) {
             if (e instanceof ArmorStand as && e.getPersistentDataContainer().has(ChunkLoaderListener.KEY_LOADER_BOT)) {
-                long timeLeft = loaders.getOrDefault(loc, 0L) - System.currentTimeMillis();
+                Long expiry = getExpiry(loc); // Use helper to find correct key
+                if (expiry == null) continue;
+
+                long timeLeft = expiry - System.currentTimeMillis();
                 
                 if (timeLeft > 0) {
                     long hours = timeLeft / 3600000;
@@ -144,7 +159,10 @@ public class ChunkLoaderManager {
         for (String s : yaml.getStringList("loaders")) {
             try {
                 String[] p = s.split(",");
-                Location loc = new Location(Bukkit.getWorld(p[0]), Double.parseDouble(p[1]), Double.parseDouble(p[2]), Double.parseDouble(p[3]));
+                Location loc = new Location(Bukkit.getWorld(p[0]), 
+                        Double.parseDouble(p[1]) + 0.5, 
+                        Double.parseDouble(p[2]) + 1.0, 
+                        Double.parseDouble(p[3]) + 0.5);
                 loaders.put(loc, Long.parseLong(p[4]));
             } catch (Exception e) { e.printStackTrace(); }
         }
