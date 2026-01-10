@@ -26,7 +26,6 @@ import java.util.List;
 public class MenuListener implements Listener {
 
     private final HisaECM plugin;
-    // Keys
     private final NamespacedKey key3x3;
     private final NamespacedKey keyExplosive;
     private final NamespacedKey keyVein;
@@ -34,7 +33,6 @@ public class MenuListener implements Listener {
     private final NamespacedKey keySmelt;
     private final NamespacedKey keyTele;
 
-    // Use a raw balance placeholder if possible to avoid formatting issues
     private final String BALANCE_PLACEHOLDER = "%zessentials_user_formatted_balance_shards%";
 
     public MenuListener(HisaECM plugin) {
@@ -63,32 +61,26 @@ public class MenuListener implements Listener {
 
         int slot = event.getSlot();
 
-        // --- GROUP A: Mining Modes (Mutually Exclusive) ---
         if (slot == 10) {
-            if (!isValidTool(player, heldItem, "PICKAXE", "SHOVEL")) return;
+            if (!isValidTool(heldItem, "PICKAXE", "SHOVEL")) return;
             buyEnchant(player, heldItem, key3x3, "miner-3x3", keyExplosive, keyVein);
-        }
-        else if (slot == 12) {
-            if (!isValidTool(player, heldItem, "PICKAXE", "SHOVEL")) return;
+        } else if (slot == 12) {
+            if (!isValidTool(heldItem, "PICKAXE", "SHOVEL")) return;
             buyEnchant(player, heldItem, keyExplosive, "explosive", key3x3, keyVein);
-        }
-        else if (slot == 16) {
-            if (!isValidTool(player, heldItem, "PICKAXE", "AXE")) return;
+        } else if (slot == 16) {
+            if (!isValidTool(heldItem, "PICKAXE", "AXE")) return;
             buyEnchant(player, heldItem, keyVein, "vein-miner", key3x3, keyExplosive);
-        }
-        // --- GROUP B: Passives (Compatible with everything) ---
-        else if (slot == 14) buyEnchant(player, heldItem, keyHaste, "haste");
+        } else if (slot == 14) buyEnchant(player, heldItem, keyHaste, "haste");
         else if (slot == 28) buyEnchant(player, heldItem, keySmelt, "auto-smelt");
         else if (slot == 30) buyEnchant(player, heldItem, keyTele, "telekinesis");
     }
 
-    private boolean isValidTool(Player player, ItemStack item, String... allowedTypes) {
+    private boolean isValidTool(ItemStack item, String... allowedTypes) {
         for (String type : allowedTypes) {
             if (type.equals("PICKAXE") && Tag.ITEMS_PICKAXES.isTagged(item.getType())) return true;
             if (type.equals("AXE") && Tag.ITEMS_AXES.isTagged(item.getType())) return true;
             if (type.equals("SHOVEL") && Tag.ITEMS_SHOVELS.isTagged(item.getType())) return true;
         }
-        player.sendMessage(Component.text("You cannot apply this to a " + item.getType().name() + "!", NamedTextColor.RED));
         return false; 
     }
 
@@ -107,7 +99,7 @@ public class MenuListener implements Listener {
 
         for (NamespacedKey conflict : conflicts) {
             if (container.has(conflict, PersistentDataType.INTEGER)) {
-                player.sendMessage(Component.text("This conflicts with your current mining mode!", NamedTextColor.RED));
+                player.sendMessage(Component.text("This conflicts with your current mining enchant!", NamedTextColor.RED));
                 return;
             }
         }
@@ -122,7 +114,7 @@ public class MenuListener implements Listener {
         container.set(key, PersistentDataType.INTEGER, 1);
         List<Component> lore = meta.lore();
         if (lore == null) lore = new ArrayList<>();
-        lore.add(Component.text(displayName.replace("&", "§")).decoration(org.bukkit.inventory.meta.ItemMeta.class.isInstance(meta) ? net.kyori.adventure.text.format.TextDecoration.ITALIC : null, false));
+        lore.add(Component.text(displayName.replace("&", "§")).decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false));
         meta.lore(lore);
         item.setItemMeta(meta);
 
@@ -132,25 +124,19 @@ public class MenuListener implements Listener {
 
     private boolean hasEnoughShards(Player player, int amount) {
         try {
-            String raw = PlaceholderAPI.setPlaceholders(player, BALANCE_PLACEHOLDER);
+            String bRaw = PlaceholderAPI.setPlaceholders(player, BALANCE_PLACEHOLDER);
             
-            // Debugging: help you see why it fails in console
-            plugin.getLogger().info("[Debug] " + player.getName() + " Raw Shards: " + raw);
-
-            // Strip commas and non-numeric except decimal
-            String clean = raw.replace(",", "").replaceAll("[^0-9.]", "");
-            
+            String clean = bRaw.replace(",", "").replaceAll("[^0-9.]", "");
             if (clean.isEmpty()) return false;
 
             double current = Double.parseDouble(clean);
             
-            // Handle scientific notation or 'k' formatting if Essentials does it
-            if (raw.toLowerCase().contains("k")) current *= 1000;
-            if (raw.toLowerCase().contains("m")) current *= 1000000;
+            if (bRaw.toLowerCase().contains("k")) current *= 1000;
+            if (bRaw.toLowerCase().contains("m")) current *= 1000000;
 
-            return current >= amount;
-        } catch (Exception e) {
-            return false;
+            return current >= (double) amount;
+        } catch (Exception e) { 
+            return false; 
         }
     }
 

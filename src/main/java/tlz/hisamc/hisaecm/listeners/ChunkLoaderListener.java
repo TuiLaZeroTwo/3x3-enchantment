@@ -47,18 +47,17 @@ public class ChunkLoaderListener implements Listener {
             Player player = event.getPlayer();
             org.bukkit.Location spawnLoc = event.getClickedBlock().getLocation().add(0.5, 1, 0.5);
 
-            if (manager.isLoaderAt(spawnLoc)) {
-                player.sendMessage(Component.text("There is already a loader here!", NamedTextColor.RED));
-                return;
-            }
+            // --- FIX: CHECK CHUNK LIMIT (1 PER CHUNK) ---
+            int cx = spawnLoc.getChunk().getX();
+            int cz = spawnLoc.getChunk().getZ();
 
-            // --- CHECK LIMIT ---
-            long nearbyLoaders = spawnLoc.getWorld().getNearbyEntities(spawnLoc, 16, 16, 16).stream()
-                .filter(e -> e instanceof ArmorStand && e.getPersistentDataContainer().has(KEY_LOADER_BOT, PersistentDataType.INTEGER))
-                .count();
+            boolean alreadyHasLoader = manager.getLoaders().keySet().stream()
+                .anyMatch(loc -> loc.getWorld().equals(spawnLoc.getWorld()) 
+                    && loc.getChunk().getX() == cx 
+                    && loc.getChunk().getZ() == cz);
 
-            if (nearbyLoaders >= 1) {
-                player.sendMessage(Component.text("Limit reached: 1 Chunk Loader per 16 blocks.", NamedTextColor.RED));
+            if (alreadyHasLoader) {
+                player.sendMessage(Component.text("This chunk already has a ChunkLoader Bot!", NamedTextColor.RED));
                 return;
             }
 
@@ -70,8 +69,7 @@ public class ChunkLoaderListener implements Listener {
             bot.getEquipment().setHelmet(new ItemStack(Material.GOLD_BLOCK)); 
             bot.getPersistentDataContainer().set(KEY_LOADER_BOT, PersistentDataType.INTEGER, 1);
             
-            // --- APPLY STORED TIME ---
-            manager.addLoader(spawnLoc); // Init (0 time)
+            manager.addLoader(spawnLoc); // Init
             
             long storedTime = 0;
             if (item.getItemMeta().getPersistentDataContainer().has(KEY_STORED_TIME, PersistentDataType.LONG)) {
@@ -79,14 +77,13 @@ public class ChunkLoaderListener implements Listener {
                 manager.addTime(spawnLoc, storedTime);
             }
 
-            // Set Name based on time
             if (storedTime > 0) {
                  long hours = storedTime / 3600000;
                  bot.customName(Component.text("§b§lChunkBot: §e" + hours + "h"));
-                 player.sendMessage(Component.text("ChunkLoader placed with " + hours + " hours of fuel retained!", NamedTextColor.GREEN));
+                 player.sendMessage(Component.text("ChunkLoader placed with " + hours + " hours retained!", NamedTextColor.GREEN));
             } else {
                  bot.customName(Component.text("§c§lChunkBot: §4NO FUEL"));
-                 player.sendMessage(Component.text("ChunkLoader Bot placed! Right click to configure.", NamedTextColor.GREEN));
+                 player.sendMessage(Component.text("ChunkLoader Bot placed!", NamedTextColor.GREEN));
             }
 
             item.setAmount(item.getAmount() - 1);
