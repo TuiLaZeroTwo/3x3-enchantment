@@ -1,96 +1,68 @@
 package tlz.hisamc.hisaecm.util;
 
-import org.bukkit.Bukkit;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
-import org.bukkit.entity.ExperienceOrb;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.FurnaceRecipe;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.Recipe;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
-import tlz.hisamc.hisaecm.HisaECM;
 
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
 
 public class DropsHandler {
 
-    private static final NamespacedKey KEY_SMELT = new NamespacedKey(HisaECM.getInstance(), "enchant_smelt");
-    private static final NamespacedKey KEY_TELE = new NamespacedKey(HisaECM.getInstance(), "enchant_tele");
-
-    // FIX: Cache recipes to prevent massive lag during VeinMining
-    private static final Map<Material, ItemStack> recipeCache = new HashMap<>();
-
     public static void handleBreak(Player player, Block block, ItemStack tool) {
-        // 1. Get Drops
-        Collection<ItemStack> drops = block.getDrops(tool);
-        int xpToDrop = 0; // You can calculate XP here if you want accurate vanilla XP (complex)
-        
-        // 2. Check Enchants
-        ItemMeta meta = tool.getItemMeta();
-        boolean autoSmelt = meta != null && meta.getPersistentDataContainer().has(KEY_SMELT, PersistentDataType.INTEGER);
-        boolean telekinesis = meta != null && meta.getPersistentDataContainer().has(KEY_TELE, PersistentDataType.INTEGER);
-
-        // 3. Set Block to Air
+        handleDropsOnly(player, block, tool);
         block.setType(Material.AIR);
+    }
 
-        // 4. Process Drops
+    public static void handleDropsOnly(Player player, Block block, ItemStack tool) {
+        Collection<ItemStack> drops = block.getDrops(tool);
+        ItemMeta meta = tool.getItemMeta();
+        if (meta == null) return;
+
+        boolean tele = meta.getPersistentDataContainer().has(EnchantKeys.TELEKINESIS, PersistentDataType.INTEGER);
+        boolean smelt = meta.getPersistentDataContainer().has(EnchantKeys.AUTO_SMELT, PersistentDataType.INTEGER);
+
+        if (drops.isEmpty()) return;
+
         for (ItemStack drop : drops) {
-            if (autoSmelt) {
-                ItemStack smelted = getCachedSmeltResult(drop.getType());
-                if (smelted != null) {
-                    drop = smelted.clone();
-                    drop.setAmount(drop.getAmount()); // Preserve amount
-                }
+            ItemStack finalDrop = drop;
+
+            if (smelt) {
+                Material smelted = getSmeltedMaterial(drop.getType());
+                if (smelted != null) finalDrop = new ItemStack(smelted, drop.getAmount());
             }
 
-            if (telekinesis) {
-                // Give to Inventory
-                Map<Integer, ItemStack> leftover = player.getInventory().addItem(drop);
-                
-                // Drop Leftovers (Item Void Fix)
-                for (ItemStack l : leftover.values()) {
-                    block.getWorld().dropItemNaturally(block.getLocation(), l);
+            if (tele) {
+                HashMap<Integer, ItemStack> overflow = player.getInventory().addItem(finalDrop);
+                if (!overflow.isEmpty()) {
+                    for (ItemStack left : overflow.values()) {
+                        block.getWorld().dropItemNaturally(block.getLocation(), left);
+                    }
                 }
             } else {
-                // Drop Naturally
-                block.getWorld().dropItemNaturally(block.getLocation(), drop);
+                block.getWorld().dropItemNaturally(block.getLocation(), finalDrop);
             }
-        }
-        
-        // Optional: Telekinesis XP (Give 1 XP per block as simple logic, or implement complex logic)
-        if (telekinesis && xpToDrop > 0) {
-            player.giveExp(xpToDrop);
-        } else if (xpToDrop > 0) {
-            block.getWorld().spawn(block.getLocation(), ExperienceOrb.class).setExperience(xpToDrop);
         }
     }
 
-    // FIX: Fast Lookup Cached Smelting
-    private static ItemStack getCachedSmeltResult(Material source) {
-        if (recipeCache.containsKey(source)) {
-            return recipeCache.get(source);
-        }
-
-        Iterator<Recipe> iter = Bukkit.recipeIterator();
-        while (iter.hasNext()) {
-            Recipe recipe = iter.next();
-            if (recipe instanceof FurnaceRecipe furnaceRecipe) {
-                if (furnaceRecipe.getInput().getType() == source) {
-                    ItemStack result = furnaceRecipe.getResult();
-                    recipeCache.put(source, result);
-                    return result;
-                }
-            }
-        }
-        
-        // Cache null result (Air) so we don't search again for non-smeltable items
-        recipeCache.put(source, null);
-        return null;
+    private static Material getSmeltedMaterial(Material input) {
+        return switch (input) {
+            case RAW_IRON -> Material.IRON_INGOT;
+            case RAW_GOLD -> Material.GOLD_INGOT;
+            case RAW_COPPER -> Material.COPPER_INGOT;
+            case ANCIENT_DEBRIS -> Material.NETHERITE_SCRAP;
+            case COBBLESTONE -> Material.STONE;
+            case STONE -> Material.SMOOTH_STONE;
+            case SAND -> Material.GLASS;
+            // FIX: Use unqualified names (no "Material." prefix) inside the case labels
+            case OAK_LOG, BIRCH_LOG, SPRUCE_LOG, JUNGLE_LOG, ACACIA_LOG, DARK_OAK_LOG, 
+                 MANGROVE_LOG, CHERRY_LOG -> Material.CHARCOAL;
+            default -> null;
+        };
     }
 }

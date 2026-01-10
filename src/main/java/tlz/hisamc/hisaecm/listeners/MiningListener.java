@@ -1,7 +1,6 @@
 package tlz.hisamc.hisaecm.listeners;
 
 import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
 import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -15,46 +14,64 @@ import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import tlz.hisamc.hisaecm.HisaECM;
-import tlz.hisamc.hisaecm.util.DropsHandler; // Import Handler
+import tlz.hisamc.hisaecm.util.DropsHandler; 
+import tlz.hisamc.hisaecm.util.EnchantKeys;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class MiningListener implements Listener {
 
-    private final NamespacedKey key3x3;
+    private final HisaECM plugin;
 
     public MiningListener(HisaECM plugin) {
-        this.key3x3 = new NamespacedKey(plugin, "enchant_3x3");
+        this.plugin = plugin;
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
         ItemStack tool = player.getInventory().getItemInMainHand();
+        Block center = event.getBlock();
 
+        // 1. Basic Checks
         if (tool.getType() == Material.AIR || !Tag.ITEMS_PICKAXES.isTagged(tool.getType())) return;
         ItemMeta meta = tool.getItemMeta();
-        if (meta == null || !meta.getPersistentDataContainer().has(key3x3, PersistentDataType.INTEGER)) return;
-        if (player.isSneaking()) return;
+        if (meta == null) return;
 
-        Block center = event.getBlock();
-        BlockFace face = getTargetBlockFace(player);
-        List<Block> blocks = getSurroundingBlocks(center, face);
+        // 2. Check Enchants
+        boolean has3x3 = meta.getPersistentDataContainer().has(EnchantKeys.MINER_3X3, PersistentDataType.INTEGER);
+        boolean hasTelekinesis = meta.getPersistentDataContainer().has(EnchantKeys.TELEKINESIS, PersistentDataType.INTEGER);
+        boolean hasSmelt = meta.getPersistentDataContainer().has(EnchantKeys.AUTO_SMELT, PersistentDataType.INTEGER);
 
-        for (Block target : blocks) {
-            if (target.getLocation().equals(center.getLocation())) continue;
-            if (target.getType() == Material.BEDROCK || target.getType() == Material.AIR) continue;
+        // If tool has NONE of our enchants, let vanilla handle it.
+        if (!has3x3 && !hasTelekinesis && !hasSmelt) return;
 
-            // USE DROPS HANDLER HERE
-            DropsHandler.handleBreak(player, target, tool);
-            
-            applyDurability(player, tool);
+        // 3. Handle Center Block (Telekinesis / AutoSmelt)
+        // If we have either enchant, we MUST override vanilla drops.
+        if (hasTelekinesis || hasSmelt) {
+            event.setDropItems(false); // Stop vanilla drop
+            DropsHandler.handleDropsOnly(player, center, tool); // Give custom items
+        }
+
+        // 4. Handle 3x3 Logic (Neighbors)
+        if (has3x3 && !player.isSneaking()) {
+            BlockFace face = getTargetBlockFace(player);
+            List<Block> neighbors = getSurroundingBlocks(center, face);
+
+            for (Block target : neighbors) {
+                if (target.getLocation().equals(center.getLocation())) continue; // Skip center
+                if (target.getType() == Material.BEDROCK || target.getType() == Material.AIR || target.getType() == Material.BARRIER) continue;
+
+                // Break Neighbor (This handles drops + air + durability)
+                DropsHandler.handleBreak(player, target, tool);
+                applyDurability(player, tool);
+            }
         }
     }
 
-    // (Keep helper methods: getSurroundingBlocks, getTargetBlockFace, applyDurability)
-    // For brevity, assume standard 3x3 logic helpers are here as before.
+    // --- Helpers ---
+
     private List<Block> getSurroundingBlocks(Block center, BlockFace face) {
         List<Block> blocks = new ArrayList<>();
         if (face == BlockFace.UP || face == BlockFace.DOWN) {
@@ -69,7 +86,11 @@ public class MiningListener implements Listener {
 
     private BlockFace getTargetBlockFace(Player player) {
         var res = player.rayTraceBlocks(5.0);
-        return res == null ? BlockFace.UP : res.getHitBlockFace();
+        if (res != null && res.getHitBlockFace() != null) return res.getHitBlockFace();
+        float pitch = player.getEyeLocation().getPitch();
+        if (pitch > 45) return BlockFace.DOWN;
+        if (pitch < -45) return BlockFace.UP;
+        return player.getFacing();
     }
 
     private void applyDurability(Player player, ItemStack tool) {

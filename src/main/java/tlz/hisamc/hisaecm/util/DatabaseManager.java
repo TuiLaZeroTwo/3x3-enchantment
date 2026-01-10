@@ -33,7 +33,9 @@ public class DatabaseManager {
 
                 String url = "jdbc:mysql://" + host + ":" + port + "/" + dbName + "?useSSL=" + ssl + "&autoReconnect=true";
                 connection = DriverManager.getConnection(url, user, pass);
-                plugin.getLogger().info("Connected to MySQL database.");
+                
+                // SILENCED LOG
+                // plugin.getLogger().info("Connected to MySQL database.");
             } 
             
             // --- SQLITE CONNECTION (Default) ---
@@ -44,7 +46,9 @@ public class DatabaseManager {
                 }
                 String url = "jdbc:sqlite:" + dbFile.getAbsolutePath();
                 connection = DriverManager.getConnection(url);
-                plugin.getLogger().info("Connected to local SQLite database.");
+                
+                // SILENCED LOG
+                // plugin.getLogger().info("Connected to local SQLite database.");
             }
             
             initTables();
@@ -57,10 +61,6 @@ public class DatabaseManager {
 
     private void initTables() {
         try (Statement stmt = connection.createStatement()) {
-            // MySQL uses different syntax for Primary Keys in CREATE TABLE usually, 
-            // but this simple syntax works for both in most cases if simple.
-            // For better compatibility, we ensure standard SQL.
-            
             // 1. Bounties
             stmt.execute("CREATE TABLE IF NOT EXISTS bounties (" +
                     "target VARCHAR(32) PRIMARY KEY," +
@@ -87,6 +87,7 @@ public class DatabaseManager {
 
     public Connection getConnection() {
         try {
+            // Reconnect if the previous connection was closed by a manager
             if (connection == null || connection.isClosed()) {
                 connect();
             }

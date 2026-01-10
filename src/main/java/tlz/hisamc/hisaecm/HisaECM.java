@@ -7,8 +7,9 @@ import tlz.hisamc.hisaecm.listeners.*;
 import tlz.hisamc.hisaecm.tasks.AutoClearTask;
 import tlz.hisamc.hisaecm.util.BountyManager;
 import tlz.hisamc.hisaecm.util.ChunkLoaderManager;
-import tlz.hisamc.hisaecm.util.ConfigUpdater; // IMPORT
+import tlz.hisamc.hisaecm.util.ConfigUpdater;
 import tlz.hisamc.hisaecm.util.DatabaseManager;
+import tlz.hisamc.hisaecm.util.EnchantKeys; // Make sure to import this!
 
 public final class HisaECM extends JavaPlugin {
 
@@ -23,9 +24,10 @@ public final class HisaECM extends JavaPlugin {
     public void onEnable() {
         instance = this;
 
-        // 1. Load Defaults & Update Config if missing keys
+        // 1. Setup Config & Keys
         saveDefaultConfig();
-        ConfigUpdater.update(this); // <--- AUTO UPDATE HERE
+        ConfigUpdater.update(this);
+        EnchantKeys.init(this); // <--- IMPORTANT: Initialize Keys Here
 
         // 2. Initialize Database
         this.databaseManager = new DatabaseManager(this);
@@ -35,26 +37,34 @@ public final class HisaECM extends JavaPlugin {
         this.loaderManager = new ChunkLoaderManager(this, databaseManager);
         this.boosterListener = new CropBoosterListener(this, databaseManager);
 
-        // 4. Register Commands & Listeners
+        // 4. Register Commands
         getCommand("hisaecm").setExecutor(new HisaCommand(this));
         getCommand("bounty").setExecutor(new HisaCommand(this)); 
 
+        // 5. Register Listeners
         var pm = getServer().getPluginManager();
+        
         pm.registerEvents(new MainMenuListener(this), this);
         pm.registerEvents(new MenuListener(this), this);
         pm.registerEvents(new ShopListener(this), this);
+        
         pm.registerEvents(new BoosterGuiListener(this, boosterListener), this);
         pm.registerEvents(boosterListener, this); 
+        
         pm.registerEvents(new BountyListener(this, bountyManager), this);
         pm.registerEvents(new BountyGuiListener(this, bountyManager), this);
+        
         pm.registerEvents(new ChunkLoaderListener(this, loaderManager), this); 
         pm.registerEvents(new LoaderGuiListener(this, loaderManager), this);
+        
+        // Mining Listeners (These use DropsHandler internally)
         pm.registerEvents(new MiningListener(this), this);
         pm.registerEvents(new ExplosiveListener(this), this);
         pm.registerEvents(new VeinMiningListener(this), this);
         pm.registerEvents(new HasteListener(this), this);
         pm.registerEvents(new HarvesterHoeListener(this), this);
 
+        // 6. Auto Clear Task
         if (getConfig().getBoolean("auto-clear.enabled", true)) {
             this.autoClearTask = new AutoClearTask(this);
             Bukkit.getGlobalRegionScheduler().runAtFixedRate(this, (task) -> {
@@ -62,7 +72,7 @@ public final class HisaECM extends JavaPlugin {
             }, 20L, 20L);
         }
         
-        getLogger().info("Hisa-ECM enabled!");
+        getLogger().info("Hisa-ECM enabled successfully!");
     }
 
     @Override

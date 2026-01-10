@@ -18,6 +18,7 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import tlz.hisamc.hisaecm.HisaECM;
 import tlz.hisamc.hisaecm.gui.EnchantMenu;
+import tlz.hisamc.hisaecm.util.EnchantKeys;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,16 +34,17 @@ public class MenuListener implements Listener {
     private final NamespacedKey keySmelt;
     private final NamespacedKey keyTele;
 
+    // Use a raw balance placeholder if possible to avoid formatting issues
     private final String BALANCE_PLACEHOLDER = "%zessentials_user_formatted_balance_shards%";
 
     public MenuListener(HisaECM plugin) {
         this.plugin = plugin;
-        this.key3x3 = new NamespacedKey(plugin, "enchant_3x3");
-        this.keyExplosive = new NamespacedKey(plugin, "enchant_explosive");
-        this.keyVein = new NamespacedKey(plugin, "enchant_vein");
-        this.keyHaste = new NamespacedKey(plugin, "enchant_haste");
-        this.keySmelt = new NamespacedKey(plugin, "enchant_smelt");
-        this.keyTele = new NamespacedKey(plugin, "enchant_tele");
+        this.key3x3 = EnchantKeys.MINER_3X3;
+        this.keyExplosive = EnchantKeys.EXPLOSIVE;
+        this.keyVein = EnchantKeys.VEIN_MINER;
+        this.keyHaste = EnchantKeys.HASTE;
+        this.keySmelt = EnchantKeys.AUTO_SMELT;
+        this.keyTele = EnchantKeys.TELEKINESIS;
     }
 
     @EventHandler
@@ -54,7 +56,6 @@ public class MenuListener implements Listener {
         Player player = (Player) event.getWhoClicked();
         ItemStack heldItem = player.getInventory().getItemInMainHand();
 
-        // REMOVED: Global Pickaxe Check
         if (heldItem.getType() == Material.AIR) {
             player.sendMessage(Component.text("You must hold a tool!", NamedTextColor.RED));
             return;
@@ -63,42 +64,31 @@ public class MenuListener implements Listener {
         int slot = event.getSlot();
 
         // --- GROUP A: Mining Modes (Mutually Exclusive) ---
-        
-        // 1. 3x3 Mining (Slot 10) - Pickaxes & Shovels
         if (slot == 10) {
-            if (!isValidTool(heldItem, "PICKAXE", "SHOVEL")) return;
+            if (!isValidTool(player, heldItem, "PICKAXE", "SHOVEL")) return;
             buyEnchant(player, heldItem, key3x3, "miner-3x3", keyExplosive, keyVein);
         }
-        
-        // 2. Explosive (Slot 12) - Pickaxes & Shovels
         else if (slot == 12) {
-            if (!isValidTool(heldItem, "PICKAXE", "SHOVEL")) return;
+            if (!isValidTool(player, heldItem, "PICKAXE", "SHOVEL")) return;
             buyEnchant(player, heldItem, keyExplosive, "explosive", key3x3, keyVein);
         }
-        
-        // 3. Vein Miner (Slot 16) - Pickaxes AND AXES
         else if (slot == 16) {
-            if (!isValidTool(heldItem, "PICKAXE", "AXE")) return;
+            if (!isValidTool(player, heldItem, "PICKAXE", "AXE")) return;
             buyEnchant(player, heldItem, keyVein, "vein-miner", key3x3, keyExplosive);
         }
-
         // --- GROUP B: Passives (Compatible with everything) ---
         else if (slot == 14) buyEnchant(player, heldItem, keyHaste, "haste");
         else if (slot == 28) buyEnchant(player, heldItem, keySmelt, "auto-smelt");
         else if (slot == 30) buyEnchant(player, heldItem, keyTele, "telekinesis");
     }
 
-    // Helper to validate tool types safely
-    private boolean isValidTool(ItemStack item, String... allowedTypes) {
+    private boolean isValidTool(Player player, ItemStack item, String... allowedTypes) {
         for (String type : allowedTypes) {
             if (type.equals("PICKAXE") && Tag.ITEMS_PICKAXES.isTagged(item.getType())) return true;
             if (type.equals("AXE") && Tag.ITEMS_AXES.isTagged(item.getType())) return true;
             if (type.equals("SHOVEL") && Tag.ITEMS_SHOVELS.isTagged(item.getType())) return true;
         }
-        // If we get here, tool is invalid
-        String msg = String.join(" or ", allowedTypes);
-        // Clean up message (e.g., "PICKAXE or AXE")
-        Bukkit.getPlayer(item.getType().toString()); // Dummy call, just need player context ideally but here we rely on return false
+        player.sendMessage(Component.text("You cannot apply this to a " + item.getType().name() + "!", NamedTextColor.RED));
         return false; 
     }
 
@@ -110,22 +100,18 @@ public class MenuListener implements Listener {
         ItemMeta meta = item.getItemMeta();
         PersistentDataContainer container = meta.getPersistentDataContainer();
 
-        // 1. Check Ownership
         if (container.has(key, PersistentDataType.INTEGER)) {
             player.sendMessage(Component.text("You already have " + displayName + "!", NamedTextColor.RED));
             return;
         }
 
-        // 2. Check Conflicts
         for (NamespacedKey conflict : conflicts) {
             if (container.has(conflict, PersistentDataType.INTEGER)) {
-                player.sendMessage(Component.text("This conflicts with your current mining enchant!", NamedTextColor.RED));
-                player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1, 1);
+                player.sendMessage(Component.text("This conflicts with your current mining mode!", NamedTextColor.RED));
                 return;
             }
         }
 
-        // 3. Check Balance
         if (!hasEnoughShards(player, price)) {
             player.sendMessage(Component.text("Not enough shards! Need: " + price, NamedTextColor.RED));
             return;
@@ -133,11 +119,10 @@ public class MenuListener implements Listener {
 
         takeShards(player, price);
 
-        // 4. Apply
         container.set(key, PersistentDataType.INTEGER, 1);
         List<Component> lore = meta.lore();
         if (lore == null) lore = new ArrayList<>();
-        lore.add(Component.text(displayName, NamedTextColor.GRAY));
+        lore.add(Component.text(displayName.replace("&", "§")).decoration(org.bukkit.inventory.meta.ItemMeta.class.isInstance(meta) ? net.kyori.adventure.text.format.TextDecoration.ITALIC : null, false));
         meta.lore(lore);
         item.setItemMeta(meta);
 
@@ -147,9 +132,26 @@ public class MenuListener implements Listener {
 
     private boolean hasEnoughShards(Player player, int amount) {
         try {
-            String b = PlaceholderAPI.setPlaceholders(player, BALANCE_PLACEHOLDER).replaceAll("[^0-9.]", "");
-            return !b.isEmpty() && Double.parseDouble(b) >= amount;
-        } catch (Exception e) { return false; }
+            String raw = PlaceholderAPI.setPlaceholders(player, BALANCE_PLACEHOLDER);
+            
+            // Debugging: help you see why it fails in console
+            plugin.getLogger().info("[Debug] " + player.getName() + " Raw Shards: " + raw);
+
+            // Strip commas and non-numeric except decimal
+            String clean = raw.replace(",", "").replaceAll("[^0-9.]", "");
+            
+            if (clean.isEmpty()) return false;
+
+            double current = Double.parseDouble(clean);
+            
+            // Handle scientific notation or 'k' formatting if Essentials does it
+            if (raw.toLowerCase().contains("k")) current *= 1000;
+            if (raw.toLowerCase().contains("m")) current *= 1000000;
+
+            return current >= amount;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private void takeShards(Player player, int amount) {

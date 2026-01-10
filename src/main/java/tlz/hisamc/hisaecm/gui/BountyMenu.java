@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class BountyMenu {
 
@@ -95,31 +96,46 @@ public class BountyMenu {
         player.openInventory(gui);
     }
 
-    @SuppressWarnings("deprecation") // Suppresses warning for getOfflinePlayer(String)
-    private static ItemStack createHead(String name, double amount) {
+    private static ItemStack createHead(String identifier, double amount) {
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
         
-        // FIX: Replaced setOwner(String) with setOwningPlayer(OfflinePlayer)
-        meta.setOwningPlayer(Bukkit.getOfflinePlayer(name)); 
-        
-        meta.displayName(Component.text(name, NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
-        meta.lore(Arrays.asList(
-            Component.text("Bounty: ", NamedTextColor.GRAY).append(Component.text(amount + " Shards", NamedTextColor.GOLD)).decoration(TextDecoration.ITALIC, false),
-            Component.empty(),
-            Component.text("Click to Raise Bounty", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
-        ));
-        head.setItemMeta(meta);
+        if (meta != null && identifier != null) {
+            // FIX: Prevent 16-character limit crash
+            if (identifier.length() <= 16) {
+                // Standard Player Name
+                meta.setOwningPlayer(Bukkit.getOfflinePlayer(identifier));
+            } else if (identifier.length() == 36 || identifier.length() == 32) {
+                // Handle potential UUID identifiers safely
+                try {
+                    UUID uuid = identifier.length() == 32 
+                        ? UUID.fromString(identifier.replaceFirst("(\\p{XDigit}{8})(\\p{XDigit}{4})(\\p{XDigit}{4})(\\p{XDigit}{4})(\\p{XDigit}{12})", "$1-$2-$3-$4-$5"))
+                        : UUID.fromString(identifier);
+                    meta.setOwningPlayer(Bukkit.getOfflinePlayer(uuid));
+                } catch (IllegalArgumentException e) {
+                    // Not a valid UUID, just show the head without custom skin to avoid crash
+                }
+            }
+
+            meta.displayName(Component.text(identifier, NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
+            meta.lore(Arrays.asList(
+                Component.text("Bounty: ", NamedTextColor.GRAY).append(Component.text(amount + " Shards", NamedTextColor.GOLD)).decoration(TextDecoration.ITALIC, false),
+                Component.empty(),
+                Component.text("Click to Raise Bounty", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)
+            ));
+            head.setItemMeta(meta);
+        }
         return head;
     }
 
     private static ItemStack createItem(Material mat, String name, int pageData) {
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text(name, NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
-        // Store Page Number in PDC for arrows
-        meta.getPersistentDataContainer().set(BountyGuiListener.KEY_PAGE, PersistentDataType.INTEGER, pageData);
-        item.setItemMeta(meta);
+        if (meta != null) {
+            meta.displayName(Component.text(name, NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
+            meta.getPersistentDataContainer().set(BountyGuiListener.KEY_PAGE, PersistentDataType.INTEGER, pageData);
+            item.setItemMeta(meta);
+        }
         return item;
     }
 }

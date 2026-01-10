@@ -6,84 +6,80 @@ import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
-import tlz.hisamc.hisaecm.listeners.BoosterGuiListener;
 
 import java.util.Arrays;
-import java.util.concurrent.TimeUnit;
+import java.util.List;
 
 public class BoosterMenu {
 
     public static final Component TITLE = Component.text("Crop Booster Settings");
+    public static final NamespacedKey KEY_LOC_X = new NamespacedKey("hisaecm", "booster_x");
+    public static final NamespacedKey KEY_LOC_Y = new NamespacedKey("hisaecm", "booster_y");
+    public static final NamespacedKey KEY_LOC_Z = new NamespacedKey("hisaecm", "booster_z");
+    public static final NamespacedKey KEY_WORLD = new NamespacedKey("hisaecm", "booster_world");
 
     public static void open(Player player, Location loc, long expiryTime) {
         Inventory gui = Bukkit.createInventory(null, 27, TITLE);
 
-        long timeLeftMillis = expiryTime - System.currentTimeMillis();
-        String timeString = formatTime(timeLeftMillis);
-
-        // 1. Info Icon (Center)
-        ItemStack info = new ItemStack(Material.CLOCK);
-        ItemMeta infoMeta = info.getItemMeta();
-        infoMeta.displayName(Component.text("Status: ", NamedTextColor.GRAY).append(Component.text("Active", NamedTextColor.GREEN)).decoration(TextDecoration.ITALIC, false));
-        infoMeta.lore(Arrays.asList(
-                Component.text("Time Remaining: ", NamedTextColor.GRAY).append(Component.text(timeString, NamedTextColor.YELLOW)).decoration(TextDecoration.ITALIC, false),
-                Component.empty(),
-                Component.text("Location: " + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ(), NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false)
+        // --- 1. INFO ICON ---
+        ItemStack info = new ItemStack(Material.BEACON);
+        ItemMeta iMeta = info.getItemMeta();
+        iMeta.displayName(Component.text("Booster Status", NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
+        
+        long timeLeft = expiryTime - System.currentTimeMillis();
+        String timeStr = timeLeft > 0 ? formatTime(timeLeft) : "Expired";
+        
+        iMeta.lore(Arrays.asList(
+            Component.text("Time Left: ", NamedTextColor.GRAY).append(Component.text(timeStr, NamedTextColor.YELLOW)),
+            Component.text("Range: ", NamedTextColor.GRAY).append(Component.text("20x20 Area", NamedTextColor.AQUA))
         ));
-        // Store Location in item to identify which booster we are editing
-        infoMeta.getPersistentDataContainer().set(BoosterGuiListener.KEY_LOC_X, PersistentDataType.INTEGER, loc.getBlockX());
-        infoMeta.getPersistentDataContainer().set(BoosterGuiListener.KEY_LOC_Y, PersistentDataType.INTEGER, loc.getBlockY());
-        infoMeta.getPersistentDataContainer().set(BoosterGuiListener.KEY_LOC_Z, PersistentDataType.INTEGER, loc.getBlockZ());
-        info.setItemMeta(infoMeta);
+
+        iMeta.getPersistentDataContainer().set(KEY_LOC_X, PersistentDataType.INTEGER, loc.getBlockX());
+        iMeta.getPersistentDataContainer().set(KEY_LOC_Y, PersistentDataType.INTEGER, loc.getBlockY());
+        iMeta.getPersistentDataContainer().set(KEY_LOC_Z, PersistentDataType.INTEGER, loc.getBlockZ());
+        iMeta.getPersistentDataContainer().set(KEY_WORLD, PersistentDataType.STRING, loc.getWorld().getName());
+        
+        info.setItemMeta(iMeta);
         gui.setItem(4, info);
 
-        // 2. Add Time (Left)
-        ItemStack addTime = new ItemStack(Material.EMERALD);
-        ItemMeta addMeta = addTime.getItemMeta();
-        addMeta.displayName(Component.text("Add Time", NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
-        addMeta.lore(Arrays.asList(
-                Component.text("Requires 'Crop Booster' items in inventory.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-                Component.empty(),
-                Component.text("Right-Click: ", NamedTextColor.YELLOW).append(Component.text("Use 1 Item", NamedTextColor.WHITE)).decoration(TextDecoration.ITALIC, false),
-                Component.text("Shift-Right-Click: ", NamedTextColor.YELLOW).append(Component.text("Use All Items", NamedTextColor.WHITE)).decoration(TextDecoration.ITALIC, false)
-        ));
-        addTime.setItemMeta(addMeta);
-        gui.setItem(11, addTime);
+        // --- 2. FUEL OPTIONS ---
+        gui.setItem(11, createItem(Material.DIAMOND, "&bAdd 1 Hour", Arrays.asList("&7Cost: &f4 Diamonds")));
+        gui.setItem(15, createItem(Material.EMERALD_BLOCK, "&aAdd 24 Hours", Arrays.asList("&7Cost: &f32 Emerald Blocks")));
 
-        // 3. Visualize Range (Right)
-        ItemStack visual = new ItemStack(Material.SPYGLASS);
-        ItemMeta visMeta = visual.getItemMeta();
-        visMeta.displayName(Component.text("Show Range", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
-        visMeta.lore(Arrays.asList(
-            Component.text("Click to toggle a visual box", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-            Component.text("showing the effective area.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-        ));
-        visual.setItemMeta(visMeta);
-        gui.setItem(13, visual);
+        // --- 3. SHOW RADIUS ---
+        gui.setItem(13, createItem(Material.ENDER_EYE, "&eShow Range", Arrays.asList("&7Visualize the &a20x20&7 effect area.")));
 
-        // 4. Pickup (Far Right)
-        ItemStack pickup = new ItemStack(Material.HOPPER);
-        ItemMeta pickMeta = pickup.getItemMeta();
-        pickMeta.displayName(Component.text("Pick Up Booster", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
-        pickMeta.lore(Arrays.asList(
-                Component.text("Remove the booster and return", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-                Component.text("it to your inventory.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-        ));
-        pickup.setItemMeta(pickMeta);
-        gui.setItem(15, pickup);
+        // --- 4. PICKUP ---
+        gui.setItem(22, createItem(Material.HOPPER, "&cPickup Booster", Arrays.asList("&7Returns the item to inventory.")));
+
+        ItemStack glass = createItem(Material.GRAY_STAINED_GLASS_PANE, " ", null);
+        for (int i = 0; i < 27; i++) {
+            if (gui.getItem(i) == null) gui.setItem(i, glass);
+        }
 
         player.openInventory(gui);
     }
 
+    private static ItemStack createItem(Material mat, String name, List<String> lore) {
+        ItemStack item = new ItemStack(mat);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text(name.replace("&", "§")).decoration(TextDecoration.ITALIC, false));
+        if (lore != null) {
+            meta.lore(lore.stream().map(l -> Component.text(l.replace("&", "§")).decoration(TextDecoration.ITALIC, false)).toList());
+        }
+        item.setItemMeta(meta);
+        return item;
+    }
+
     private static String formatTime(long millis) {
-        if (millis <= 0) return "Expired";
-        long hours = TimeUnit.MILLISECONDS.toHours(millis);
-        long minutes = TimeUnit.MILLISECONDS.toMinutes(millis) % 60;
+        long hours = millis / 3600000;
+        long minutes = (millis % 3600000) / 60000;
         return String.format("%dh %dm", hours, minutes);
     }
 }
