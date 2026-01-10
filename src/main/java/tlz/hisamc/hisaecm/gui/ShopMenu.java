@@ -28,7 +28,7 @@ public class ShopMenu {
                 "crop-booster", config
         ));
         
-        // 2. Chunk Loader Bot (Slot 13) - NEW
+        // 2. Chunk Loader Bot (Slot 13)
         gui.setItem(13, createIcon(
                 Material.valueOf(config.getString("shop.chunk-loader.material", "ARMOR_STAND")),
                 "chunk-loader", config
@@ -40,11 +40,13 @@ public class ShopMenu {
                 "harvester-hoe", config
         ));
 
-        // Optional: Fill empty slots with glass
+        // Fill background with glass
         ItemStack glass = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
         ItemMeta gMeta = glass.getItemMeta();
-        gMeta.displayName(Component.text(" "));
-        glass.setItemMeta(gMeta);
+        if (gMeta != null) {
+            gMeta.displayName(Component.text(" "));
+            glass.setItemMeta(gMeta);
+        }
         
         for (int i = 0; i < 27; i++) {
             if (gui.getItem(i) == null) gui.setItem(i, glass);
@@ -62,16 +64,23 @@ public class ShopMenu {
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
         
-        meta.displayName(Component.text(name).decoration(TextDecoration.ITALIC, false));
-        meta.lore(Arrays.asList(
-                Component.text(desc, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-                Component.empty(),
-                Component.text("Cost: ", NamedTextColor.GRAY)
-                    .append(Component.text(price + " Shards", NamedTextColor.AQUA))
-                    .decoration(TextDecoration.ITALIC, false)
-        ));
-        
-        item.setItemMeta(meta);
+        if (meta != null) {
+            meta.displayName(Component.text(name).decoration(TextDecoration.ITALIC, false));
+            meta.lore(Arrays.asList(
+                    Component.text(desc).decoration(TextDecoration.ITALIC, false),
+                    Component.empty(),
+                    Component.text("Cost: ", NamedTextColor.GRAY)
+                        .append(Component.text(formatPrice(price) + " Shards", NamedTextColor.AQUA))
+                        .decoration(TextDecoration.ITALIC, false)
+            ));
+            item.setItemMeta(meta);
+        }
         return item;
+    }
+
+    private static String formatPrice(double value) {
+        if (value >= 1_000_000) return String.format("%.1fM", value / 1_000_000.0);
+        if (value >= 1_000) return String.format("%.1fk", value / 1_000.0);
+        return String.valueOf((int)value);
     }
 }
