@@ -46,49 +46,41 @@ public class BountyListener implements Listener {
         if (state.equals("PLACE_TARGET")) {
             tempTarget.put(player.getUniqueId(), message);
             inputState.put(player.getUniqueId(), "PLACE_AMOUNT");
-            player.sendMessage(Component.text("Target set to " + message + ". How much Shards?", NamedTextColor.YELLOW));
+            player.sendMessage(Component.text("Bounty amount for " + message + "?", NamedTextColor.YELLOW));
             return;
         }
 
-        if (state.equals("PLACE_AMOUNT")) {
-            processInput(player, message, "PLACE");
+        if (state.equals("PLACE_AMOUNT") || state.equals("RAISE_AMOUNT")) {
+            processInput(player, message, state.contains("PLACE") ? "PLACE" : "RAISE");
             return;
         }
 
         if (state.equals("RAISE_TARGET")) {
             if (manager.getBounty(message) <= 0) {
-                player.sendMessage(Component.text("That player has no bounty. Use 'Place Bounty' instead.", NamedTextColor.RED));
+                player.sendMessage(Component.text("Player has no bounty.", NamedTextColor.RED));
                 clearState(player);
                 return;
             }
             tempTarget.put(player.getUniqueId(), message);
             inputState.put(player.getUniqueId(), "RAISE_AMOUNT");
             player.sendMessage(Component.text("How much to add?", NamedTextColor.YELLOW));
-            return;
-        }
-
-        if (state.equals("RAISE_AMOUNT")) {
-            processInput(player, message, "RAISE");
         }
     }
 
     private void processInput(Player player, String message, String type) {
         try {
-            double amount = Double.parseDouble(message);
+            String clean = message.replace(",", "").replaceAll("[^0-9.kK]", "").toLowerCase();
+            double amount = Double.parseDouble(clean.replace("k", ""));
+            if (clean.contains("k")) amount *= 1000;
 
-            // --- CRASH PREVENTION (Not Grief Prevention) ---
-            if (Double.isInfinite(amount) || Double.isNaN(amount) || amount > 1_000_000_000) {
-                player.sendMessage(Component.text("Invalid amount (Max 1 Billion).", NamedTextColor.RED));
+            if (amount <= 0 || amount > 1_000_000_000) {
+                player.sendMessage(Component.text("Invalid amount.", NamedTextColor.RED));
                 clearState(player);
                 return;
             }
-            if (amount <= 0) throw new NumberFormatException();
-            // -----------------------------------------------
-
-            String target = tempTarget.get(player.getUniqueId());
-            processTransaction(player, target, amount);
+            processTransaction(player, tempTarget.get(player.getUniqueId()), amount);
         } catch (NumberFormatException e) {
-            player.sendMessage(Component.text("Invalid number. Cancelled.", NamedTextColor.RED));
+            player.sendMessage(Component.text("Invalid number.", NamedTextColor.RED));
         }
         clearState(player);
     }
@@ -96,59 +88,28 @@ public class BountyListener implements Listener {
     private void processTransaction(Player player, String target, double amount) {
         Bukkit.getGlobalRegionScheduler().execute(plugin, () -> {
             if (!hasEnoughShards(player, amount)) {
-                player.sendMessage(Component.text("You do not have enough Shards!", NamedTextColor.RED));
+                player.sendMessage(Component.text("Insufficient Shards!", NamedTextColor.RED));
                 return;
             }
-
-            String cmd = "eco take shards " + player.getName() + " " + amount;
-            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
-
+            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "eco take shards " + player.getName() + " " + amount);
             manager.addBounty(target, amount);
-            player.sendMessage(Component.text("Bounty placed/raised successfully!", NamedTextColor.GREEN));
-            Bukkit.broadcast(Component.text(player.getName() + " placed a " + amount + " shard bounty on " + target + "!", NamedTextColor.RED));
+            Bukkit.broadcast(Component.text(player.getName() + " bountied " + target + " for " + amount + " Shards!", NamedTextColor.RED));
             BountyMenu.open(player, 0);
         });
     }
 
     private boolean hasEnoughShards(Player player, double amount) {
         try {
-            String b = PlaceholderAPI.setPlaceholders(player, BALANCE_PLACEHOLDER).replaceAll("[^0-9.]", "");
-            return !b.isEmpty() && Double.parseDouble(b) >= amount;
+            String raw = PlaceholderAPI.setPlaceholders(player, BALANCE_PLACEHOLDER);
+            String clean = raw.replace(",", "").replaceAll("[^0-9.kK]", "").toLowerCase();
+            double val = Double.parseDouble(clean.replace("k", ""));
+            if (clean.contains("k")) val *= 1000;
+            return val >= amount;
         } catch (Exception e) { return false; }
     }
 
     private void clearState(Player player) {
         inputState.remove(player.getUniqueId());
         tempTarget.remove(player.getUniqueId());
-    }
-    
-    @EventHandler
-    public void onQuit(PlayerQuitEvent event) {
-        UUID uuid = event.getPlayer().getUniqueId();
-        inputState.remove(uuid);
-        tempTarget.remove(uuid);
-    }
-
-    @EventHandler 
-    public void onDeath(PlayerDeathEvent event) {
-        Player victim = event.getEntity();
-        Player killer = victim.getKiller();
-
-        double bounty = manager.getBounty(victim.getName());
-        if (bounty > 0) {
-            manager.removeBounty(victim.getName());
-            
-            if (killer != null && !killer.equals(victim)) {
-                String cmd = "eco give shards " + killer.getName() + " " + bounty;
-                Bukkit.getGlobalRegionScheduler().execute(plugin, () -> {
-                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
-                });
-                
-                killer.sendMessage(Component.text("You claimed the bounty of " + bounty + " Shards!", NamedTextColor.GOLD));
-                Bukkit.broadcast(Component.text(killer.getName() + " claimed the bounty on " + victim.getName() + "!", NamedTextColor.GOLD));
-            } else {
-                Bukkit.broadcast(Component.text("The bounty on " + victim.getName() + " was lost in the void.", NamedTextColor.GRAY));
-            }
-        }
     }
 }

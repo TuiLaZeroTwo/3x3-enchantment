@@ -30,10 +30,8 @@ public class BountyMenu {
         Inventory gui = Bukkit.createInventory(null, 54, TITLE);
 
         List<Map.Entry<String, Double>> allBounties = new ArrayList<>(manager.getAllBounties().entrySet());
-        // Sort by highest amount
         allBounties.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
 
-        // --- PAGINATION LOGIC ---
         int slotsPerPage = 45;
         int startIndex = page * slotsPerPage;
         int endIndex = Math.min(startIndex + slotsPerPage, allBounties.size());
@@ -43,48 +41,13 @@ public class BountyMenu {
             gui.setItem(i - startIndex, createHead(entry.getKey(), entry.getValue()));
         }
 
-        // --- CONTROLS (Bottom Row) ---
-        
-        // Previous Page (Slot 45)
-        if (page > 0) {
-            gui.setItem(45, createItem(Material.ARROW, "Previous Page", page - 1));
-        }
+        if (page > 0) gui.setItem(45, createItem(Material.ARROW, "Previous Page", page - 1));
+        if (endIndex < allBounties.size()) gui.setItem(53, createItem(Material.ARROW, "Next Page", page + 1));
 
-        // Next Page (Slot 53)
-        if (endIndex < allBounties.size()) {
-            gui.setItem(53, createItem(Material.ARROW, "Next Page", page + 1));
-        }
+        gui.setItem(48, createItem(Material.GOLD_INGOT, "Raise Bounty", 0));
+        gui.setItem(49, createItem(Material.DIAMOND_SWORD, "Place Bounty", 0));
+        gui.setItem(50, createItem(Material.TNT, "Clear My Bounty", 0));
 
-        // Raise Bounty (Slot 48)
-        ItemStack raise = createItem(Material.GOLD_INGOT, "Raise Bounty", 0);
-        ItemMeta rMeta = raise.getItemMeta();
-        rMeta.lore(Arrays.asList(Component.text("Add money to an existing bounty.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)));
-        raise.setItemMeta(rMeta);
-        gui.setItem(48, raise);
-
-        // Place Bounty (Slot 49 - Middle)
-        ItemStack place = createItem(Material.DIAMOND_SWORD, "Place Bounty", 0);
-        ItemMeta pMeta = place.getItemMeta();
-        pMeta.lore(Arrays.asList(
-            Component.text("Click to set a bounty on", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-            Component.text("someone using chat.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
-        ));
-        place.setItemMeta(pMeta);
-        gui.setItem(49, place);
-
-        // Revoke/Clear Bounty (Slot 50)
-        ItemStack revoke = createItem(Material.TNT, "Clear My Bounty", 0);
-        ItemMeta rvMeta = revoke.getItemMeta();
-        rvMeta.lore(Arrays.asList(
-            Component.text("Pay to remove the bounty", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-            Component.text("on your own head.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-            Component.empty(),
-            Component.text("Cost: Bounty Value + 20% Tax", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false)
-        ));
-        revoke.setItemMeta(rvMeta);
-        gui.setItem(50, revoke);
-
-        // Glass Fillers
         ItemStack glass = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
         ItemMeta gMeta = glass.getItemMeta();
         gMeta.displayName(Component.empty());
@@ -101,20 +64,15 @@ public class BountyMenu {
         SkullMeta meta = (SkullMeta) head.getItemMeta();
         
         if (meta != null && identifier != null) {
-            // FIX: Prevent 16-character limit crash
             if (identifier.length() <= 16) {
-                // Standard Player Name
                 meta.setOwningPlayer(Bukkit.getOfflinePlayer(identifier));
             } else if (identifier.length() == 36 || identifier.length() == 32) {
-                // Handle potential UUID identifiers safely
                 try {
                     UUID uuid = identifier.length() == 32 
                         ? UUID.fromString(identifier.replaceFirst("(\\p{XDigit}{8})(\\p{XDigit}{4})(\\p{XDigit}{4})(\\p{XDigit}{4})(\\p{XDigit}{12})", "$1-$2-$3-$4-$5"))
                         : UUID.fromString(identifier);
                     meta.setOwningPlayer(Bukkit.getOfflinePlayer(uuid));
-                } catch (IllegalArgumentException e) {
-                    // Not a valid UUID, just show the head without custom skin to avoid crash
-                }
+                } catch (IllegalArgumentException e) { }
             }
 
             meta.displayName(Component.text(identifier, NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));

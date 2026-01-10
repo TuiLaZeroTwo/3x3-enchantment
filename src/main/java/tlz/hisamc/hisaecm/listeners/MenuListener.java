@@ -7,14 +7,12 @@ import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Tag;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import tlz.hisamc.hisaecm.HisaECM;
 import tlz.hisamc.hisaecm.gui.EnchantMenu;
@@ -24,124 +22,55 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MenuListener implements Listener {
-
     private final HisaECM plugin;
-    private final NamespacedKey key3x3;
-    private final NamespacedKey keyExplosive;
-    private final NamespacedKey keyVein;
-    private final NamespacedKey keyHaste;
-    private final NamespacedKey keySmelt;
-    private final NamespacedKey keyTele;
+    private final String BALANCE_P = "%zessentials_user_formatted_balance_shards%";
 
-    private final String BALANCE_PLACEHOLDER = "%zessentials_user_formatted_balance_shards%";
-
-    public MenuListener(HisaECM plugin) {
-        this.plugin = plugin;
-        this.key3x3 = EnchantKeys.MINER_3X3;
-        this.keyExplosive = EnchantKeys.EXPLOSIVE;
-        this.keyVein = EnchantKeys.VEIN_MINER;
-        this.keyHaste = EnchantKeys.HASTE;
-        this.keySmelt = EnchantKeys.AUTO_SMELT;
-        this.keyTele = EnchantKeys.TELEKINESIS;
-    }
+    public MenuListener(HisaECM plugin) { this.plugin = plugin; }
 
     @EventHandler
     public void onGuiClick(InventoryClickEvent event) {
         if (!event.getView().title().equals(EnchantMenu.TITLE)) return;
         event.setCancelled(true);
-
-        if (event.getCurrentItem() == null || event.getCurrentItem().getType() == Material.AIR) return;
-        Player player = (Player) event.getWhoClicked();
-        ItemStack heldItem = player.getInventory().getItemInMainHand();
-
-        if (heldItem.getType() == Material.AIR) {
-            player.sendMessage(Component.text("You must hold a tool!", NamedTextColor.RED));
-            return;
-        }
+        ItemStack held = event.getWhoClicked().getInventory().getItemInMainHand();
+        if (held.getType().isAir()) return;
 
         int slot = event.getSlot();
+        Player p = (Player) event.getWhoClicked();
 
-        if (slot == 10) {
-            if (!isValidTool(heldItem, "PICKAXE", "SHOVEL")) return;
-            buyEnchant(player, heldItem, key3x3, "miner-3x3", keyExplosive, keyVein);
-        } else if (slot == 12) {
-            if (!isValidTool(heldItem, "PICKAXE", "SHOVEL")) return;
-            buyEnchant(player, heldItem, keyExplosive, "explosive", key3x3, keyVein);
-        } else if (slot == 16) {
-            if (!isValidTool(heldItem, "PICKAXE", "AXE")) return;
-            buyEnchant(player, heldItem, keyVein, "vein-miner", key3x3, keyExplosive);
-        } else if (slot == 14) buyEnchant(player, heldItem, keyHaste, "haste");
-        else if (slot == 28) buyEnchant(player, heldItem, keySmelt, "auto-smelt");
-        else if (slot == 30) buyEnchant(player, heldItem, keyTele, "telekinesis");
+        if (slot == 10) buy(p, held, EnchantKeys.MINER_3X3, "miner-3x3");
+        else if (slot == 12) buy(p, held, EnchantKeys.EXPLOSIVE, "explosive");
+        else if (slot == 16) buy(p, held, EnchantKeys.VEIN_MINER, "vein-miner");
+        else if (slot == 14) buy(p, held, EnchantKeys.HASTE, "haste");
+        else if (slot == 28) buy(p, held, EnchantKeys.AUTO_SMELT, "auto-smelt");
+        else if (slot == 30) buy(p, held, EnchantKeys.TELEKINESIS, "telekinesis");
     }
 
-    private boolean isValidTool(ItemStack item, String... allowedTypes) {
-        for (String type : allowedTypes) {
-            if (type.equals("PICKAXE") && Tag.ITEMS_PICKAXES.isTagged(item.getType())) return true;
-            if (type.equals("AXE") && Tag.ITEMS_AXES.isTagged(item.getType())) return true;
-            if (type.equals("SHOVEL") && Tag.ITEMS_SHOVELS.isTagged(item.getType())) return true;
-        }
-        return false; 
-    }
-
-    private void buyEnchant(Player player, ItemStack item, NamespacedKey key, String configName, NamespacedKey... conflicts) {
-        FileConfiguration config = plugin.getConfig();
-        int price = config.getInt("enchants." + configName + ".price");
-        String displayName = config.getString("enchants." + configName + ".name");
-
+    private void buy(Player p, ItemStack item, NamespacedKey key, String config) {
+        int price = plugin.getConfig().getInt("enchants." + config + ".price");
+        if (!hasShards(p, price)) { p.sendMessage(Component.text("Not enough shards!", NamedTextColor.RED)); return; }
+        
         ItemMeta meta = item.getItemMeta();
-        PersistentDataContainer container = meta.getPersistentDataContainer();
-
-        if (container.has(key, PersistentDataType.INTEGER)) {
-            player.sendMessage(Component.text("You already have " + displayName + "!", NamedTextColor.RED));
-            return;
-        }
-
-        for (NamespacedKey conflict : conflicts) {
-            if (container.has(conflict, PersistentDataType.INTEGER)) {
-                player.sendMessage(Component.text("This conflicts with your current mining enchant!", NamedTextColor.RED));
-                return;
-            }
-        }
-
-        if (!hasEnoughShards(player, price)) {
-            player.sendMessage(Component.text("Not enough shards! Need: " + price, NamedTextColor.RED));
-            return;
-        }
-
-        takeShards(player, price);
-
-        container.set(key, PersistentDataType.INTEGER, 1);
-        List<Component> lore = meta.lore();
-        if (lore == null) lore = new ArrayList<>();
-        lore.add(Component.text(displayName.replace("&", "§")).decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false));
+        if (meta.getPersistentDataContainer().has(key, PersistentDataType.INTEGER)) return;
+        
+        takeShards(p, price);
+        meta.getPersistentDataContainer().set(key, PersistentDataType.INTEGER, 1);
+        List<Component> lore = meta.hasLore() ? meta.lore() : new ArrayList<>();
+        lore.add(Component.text(plugin.getConfig().getString("enchants." + config + ".name").replace("&", "§")));
         meta.lore(lore);
         item.setItemMeta(meta);
-
-        player.sendMessage(Component.text("Purchased " + displayName + "!", NamedTextColor.GREEN));
-        player.closeInventory();
+        p.sendMessage(Component.text("Purchased!", NamedTextColor.GREEN));
     }
 
-    private boolean hasEnoughShards(Player player, int amount) {
+    private boolean hasShards(Player p, int amount) {
         try {
-            String bRaw = PlaceholderAPI.setPlaceholders(player, BALANCE_PLACEHOLDER);
-            
-            String clean = bRaw.replace(",", "").replaceAll("[^0-9.]", "");
-            if (clean.isEmpty()) return false;
-
-            double current = Double.parseDouble(clean);
-            
-            if (bRaw.toLowerCase().contains("k")) current *= 1000;
-            if (bRaw.toLowerCase().contains("m")) current *= 1000000;
-
-            return current >= (double) amount;
-        } catch (Exception e) { 
-            return false; 
-        }
+            String raw = PlaceholderAPI.setPlaceholders(p, BALANCE_P).replace(",", "").replaceAll("[^0-9.]", "");
+            double val = Double.parseDouble(raw);
+            if (raw.toLowerCase().contains("k")) val *= 1000;
+            return val >= amount;
+        } catch (Exception e) { return false; }
     }
 
-    private void takeShards(Player player, int amount) {
-        String cmd = "eco take shards " + player.getName() + " " + amount;
-        Bukkit.getGlobalRegionScheduler().execute(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd));
+    private void takeShards(Player p, int amount) {
+        Bukkit.getGlobalRegionScheduler().execute(plugin, () -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "eco take shards " + p.getName() + " " + amount));
     }
 }

@@ -31,7 +31,6 @@ public class BountyManager {
         return 0;
     }
 
-    // --- FIX: Added method for GUI ---
     public Map<String, Double> getAllBounties() {
         Map<String, Double> map = new LinkedHashMap<>();
         String query = "SELECT target, amount FROM bounties ORDER BY amount DESC";
@@ -62,29 +61,12 @@ public class BountyManager {
 
     public void removeBounty(String playerName) {
         Bukkit.getGlobalRegionScheduler().execute(plugin, () -> {
-            String query = "DELETE FROM bounties WHERE target = ?";
+            String query = "DELETE FROM loaders WHERE target = ?"; // Ensure table name matches DB
             try (Connection conn = db.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(query)) {
+                 PreparedStatement ps = conn.prepareStatement("DELETE FROM bounties WHERE target = ?")) {
                 ps.setString(1, playerName);
                 ps.executeUpdate();
             } catch (SQLException e) { e.printStackTrace(); }
         });
     }
-    
-    // For Top Leaderboards
-    public Map<String, Double> getTopBounties(int limit) {
-        Map<String, Double> top = new LinkedHashMap<>();
-        String query = "SELECT target, amount FROM bounties ORDER BY amount DESC LIMIT ?";
-        try (Connection conn = db.getConnection();
-             PreparedStatement ps = conn.prepareStatement(query)) {
-            ps.setInt(1, limit);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                top.put(rs.getString("target"), rs.getDouble("amount"));
-            }
-        } catch (SQLException e) { e.printStackTrace(); }
-        return top;
-    }
-
-    public void saveBounties() {} 
 }

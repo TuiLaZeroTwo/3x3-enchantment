@@ -33,82 +33,49 @@ public class ChunkLoaderListener implements Listener {
 
     @EventHandler
     public void onPlace(PlayerInteractEvent event) {
-        if (!event.getAction().isRightClick()) return;
-        if (event.getHand() != EquipmentSlot.HAND) return;
-        if (event.getClickedBlock() == null) return;
-        
+        if (!event.getAction().isRightClick() || event.getHand() != EquipmentSlot.HAND || event.getClickedBlock() == null) return;
         ItemStack item = event.getItem();
-        if (item == null || !item.hasItemMeta()) return;
-
-        if (item.getType() == Material.ARMOR_STAND && 
-            item.getItemMeta().getDisplayName().contains("ChunkLoader")) {
-            
-            event.setCancelled(true);
-            Player player = event.getPlayer();
-            org.bukkit.Location spawnLoc = event.getClickedBlock().getLocation().add(0.5, 1, 0.5);
-
-            // --- FIX: CHECK CHUNK LIMIT (1 PER CHUNK) ---
-            int cx = spawnLoc.getChunk().getX();
-            int cz = spawnLoc.getChunk().getZ();
-
-            boolean alreadyHasLoader = manager.getLoaders().keySet().stream()
-                .anyMatch(loc -> loc.getWorld().equals(spawnLoc.getWorld()) 
-                    && loc.getChunk().getX() == cx 
-                    && loc.getChunk().getZ() == cz);
-
-            if (alreadyHasLoader) {
-                player.sendMessage(Component.text("This chunk already has a ChunkLoader Bot!", NamedTextColor.RED));
-                return;
-            }
-
-            // --- SPAWN BOT ---
-            ArmorStand bot = (ArmorStand) spawnLoc.getWorld().spawnEntity(spawnLoc, EntityType.ARMOR_STAND);
-            bot.setGravity(false);
-            bot.setSmall(true);
-            bot.setCustomNameVisible(true);
-            bot.getEquipment().setHelmet(new ItemStack(Material.GOLD_BLOCK)); 
-            bot.getPersistentDataContainer().set(KEY_LOADER_BOT, PersistentDataType.INTEGER, 1);
-            
-            manager.addLoader(spawnLoc); // Init
-            
-            long storedTime = 0;
-            if (item.getItemMeta().getPersistentDataContainer().has(KEY_STORED_TIME, PersistentDataType.LONG)) {
-                storedTime = item.getItemMeta().getPersistentDataContainer().get(KEY_STORED_TIME, PersistentDataType.LONG);
-                manager.addTime(spawnLoc, storedTime);
-            }
-
-            if (storedTime > 0) {
-                 long hours = storedTime / 3600000;
-                 bot.customName(Component.text("§b§lChunkBot: §e" + hours + "h"));
-                 player.sendMessage(Component.text("ChunkLoader placed with " + hours + " hours retained!", NamedTextColor.GREEN));
-            } else {
-                 bot.customName(Component.text("§c§lChunkBot: §4NO FUEL"));
-                 player.sendMessage(Component.text("ChunkLoader Bot placed!", NamedTextColor.GREEN));
-            }
-
-            item.setAmount(item.getAmount() - 1);
-        }
-    }
-
-    @EventHandler
-    public void onInteractBot(PlayerInteractAtEntityEvent event) {
-        if (!(event.getRightClicked() instanceof ArmorStand)) return;
-        ArmorStand as = (ArmorStand) event.getRightClicked();
-        if (!as.getPersistentDataContainer().has(KEY_LOADER_BOT, PersistentDataType.INTEGER)) return;
+        if (item == null || !item.hasItemMeta() || !item.getItemMeta().getDisplayName().contains("ChunkLoader")) return;
 
         event.setCancelled(true);
-        Long expiry = manager.getExpiry(as.getLocation());
-        LoaderMenu.open(event.getPlayer(), as.getLocation(), expiry != null ? expiry : System.currentTimeMillis());
+        org.bukkit.Location spawnLoc = event.getClickedBlock().getLocation().add(0.5, 1, 0.5);
+
+        int currentCX = spawnLoc.getBlockX() >> 4;
+        int currentCZ = spawnLoc.getBlockZ() >> 4;
+        String worldName = spawnLoc.getWorld().getName();
+
+        boolean alreadyHasLoader = manager.getLoaders().keySet().stream().anyMatch(loc -> 
+            (loc.getBlockX() >> 4) == currentCX && (loc.getBlockZ() >> 4) == currentCZ && loc.getWorld().getName().equals(worldName));
+
+        if (alreadyHasLoader) {
+            event.getPlayer().sendMessage(Component.text("Only 1 ChunkLoader allowed per chunk!", NamedTextColor.RED));
+            return;
+        }
+
+        ArmorStand bot = (ArmorStand) spawnLoc.getWorld().spawnEntity(spawnLoc, EntityType.ARMOR_STAND);
+        bot.setGravity(false); bot.setSmall(true); bot.setCustomNameVisible(true);
+        bot.getEquipment().setHelmet(new ItemStack(Material.GOLD_BLOCK));
+        bot.getPersistentDataContainer().set(KEY_LOADER_BOT, PersistentDataType.INTEGER, 1);
+        
+        manager.addLoader(spawnLoc);
+        if (item.getItemMeta().getPersistentDataContainer().has(KEY_STORED_TIME, PersistentDataType.LONG)) {
+            long stored = item.getItemMeta().getPersistentDataContainer().get(KEY_STORED_TIME, PersistentDataType.LONG);
+            manager.addTime(spawnLoc, stored);
+        }
+        item.setAmount(item.getAmount() - 1);
+        event.getPlayer().sendMessage(Component.text("ChunkLoader Bot placed!", NamedTextColor.GREEN));
     }
 
-    @EventHandler
-    public void onBreakBot(EntityDamageByEntityEvent event) {
-        if (!(event.getEntity() instanceof ArmorStand)) return;
-        if (!event.getEntity().getPersistentDataContainer().has(KEY_LOADER_BOT, PersistentDataType.INTEGER)) return;
+    @EventHandler public void onInteract(PlayerInteractAtEntityEvent event) {
+        if (!(event.getRightClicked() instanceof ArmorStand as) || !as.getPersistentDataContainer().has(KEY_LOADER_BOT, PersistentDataType.INTEGER)) return;
+        event.setCancelled(true);
+        LoaderMenu.open(event.getPlayer(), as.getLocation(), manager.getExpiry(as.getLocation()));
+    }
 
-        if (event.getDamager() instanceof Player player) {
+    @EventHandler public void onBreak(EntityDamageByEntityEvent event) {
+        if (event.getEntity() instanceof ArmorStand as && as.getPersistentDataContainer().has(KEY_LOADER_BOT, PersistentDataType.INTEGER)) {
             event.setCancelled(true);
-            player.sendMessage(Component.text("Right-click to open menu and pickup!", NamedTextColor.YELLOW));
+            if (event.getDamager() instanceof Player p) p.sendMessage(Component.text("Right-click to open menu and pickup!", NamedTextColor.YELLOW));
         }
     }
 }

@@ -24,8 +24,6 @@ public class BountyGuiListener implements Listener {
 
     private final HisaECM plugin;
     private final BountyManager manager;
-    
-    // FIX: Use a Thread-Safe Set for Folia
     private final Set<UUID> processing = ConcurrentHashMap.newKeySet();
     
     public static final NamespacedKey KEY_PAGE = new NamespacedKey("hisaecm", "bounty_page");
@@ -45,7 +43,6 @@ public class BountyGuiListener implements Listener {
         Player player = (Player) event.getWhoClicked();
         int slot = event.getSlot();
 
-        // Navigation
         if (slot == 45 || slot == 53) {
             if (event.getCurrentItem().getType() == Material.ARROW) {
                 int page = event.getCurrentItem().getItemMeta().getPersistentDataContainer().get(KEY_PAGE, PersistentDataType.INTEGER);
@@ -54,64 +51,48 @@ public class BountyGuiListener implements Listener {
             return;
         }
 
-        // Raise Bounty
         if (slot == 48) {
             player.closeInventory();
-            player.sendMessage(Component.text("Type the name of the player to raise bounty on:", NamedTextColor.YELLOW));
+            player.sendMessage(Component.text("Type the player name to raise bounty:", NamedTextColor.YELLOW));
             BountyListener.inputState.put(player.getUniqueId(), "RAISE_TARGET");
             return;
         }
 
-        // Place Bounty
         if (slot == 49) {
             player.closeInventory();
-            player.sendMessage(Component.text("Type the name of the player to bounty:", NamedTextColor.YELLOW));
+            player.sendMessage(Component.text("Type the player name to bounty:", NamedTextColor.YELLOW));
             BountyListener.inputState.put(player.getUniqueId(), "PLACE_TARGET");
             return;
         }
 
-        // --- REVOKE BOUNTY ---
         if (slot == 50) {
-            if (processing.contains(player.getUniqueId())) return; 
+            if (processing.contains(player.getUniqueId())) return;
             processing.add(player.getUniqueId());
             
             double currentBounty = manager.getBounty(player.getName());
             if (currentBounty <= 0) {
-                player.sendMessage(Component.text("You don't have a bounty on your head.", NamedTextColor.RED));
+                player.sendMessage(Component.text("No bounty to clear.", NamedTextColor.RED));
                 processing.remove(player.getUniqueId());
                 return;
             }
             
-            double cost = currentBounty * 1.2; // 20% Tax
+            double cost = currentBounty * 1.2;
             
             Bukkit.getGlobalRegionScheduler().execute(plugin, () -> {
                 try {
-                    // Security Check
                     if (!hasEnoughShards(player, cost)) {
-                        player.sendMessage(Component.text("You cannot afford " + cost + " Shards to clear this!", NamedTextColor.RED));
-                        return; // Finally block will still run!
+                        player.sendMessage(Component.text("Need " + cost + " Shards to clear!", NamedTextColor.RED));
+                        return;
                     }
-
-                    // Execute
-                    String cmd = "eco take shards " + player.getName() + " " + cost;
-                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
-                    
+                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "eco take shards " + player.getName() + " " + cost);
                     manager.removeBounty(player.getName());
-                    
-                    player.sendMessage(Component.text("You paid ", NamedTextColor.GREEN)
-                        .append(Component.text(cost + " Shards", NamedTextColor.AQUA))
-                        .append(Component.text(" to clear your bounty.", NamedTextColor.GREEN)));
-                    
+                    player.sendMessage(Component.text("Bounty cleared for " + cost + " Shards.", NamedTextColor.GREEN));
                     player.getScheduler().execute(plugin, () -> BountyMenu.open(player, 0), null, 0);
-
-                } finally {
-                    processing.remove(player.getUniqueId());
-                }
+                } finally { processing.remove(player.getUniqueId()); }
             });
             return;
         }
 
-        // Click Head Logic
         if (event.getCurrentItem().getType() == Material.PLAYER_HEAD) {
             SkullMeta meta = (SkullMeta) event.getCurrentItem().getItemMeta();
             if (meta.getOwningPlayer() != null) {
@@ -120,7 +101,7 @@ public class BountyGuiListener implements Listener {
                     player.closeInventory();
                     BountyListener.tempTarget.put(player.getUniqueId(), target);
                     BountyListener.inputState.put(player.getUniqueId(), "RAISE_AMOUNT");
-                    player.sendMessage(Component.text("How much do you want to add to " + target + "'s bounty?", NamedTextColor.YELLOW));
+                    player.sendMessage(Component.text("Amount to add to " + target + "?", NamedTextColor.YELLOW));
                 }
             }
         }
@@ -128,8 +109,11 @@ public class BountyGuiListener implements Listener {
 
     private boolean hasEnoughShards(Player player, double amount) {
         try {
-            String b = PlaceholderAPI.setPlaceholders(player, BALANCE_PLACEHOLDER).replaceAll("[^0-9.]", "");
-            return !b.isEmpty() && Double.parseDouble(b) >= amount;
+            String raw = PlaceholderAPI.setPlaceholders(player, BALANCE_PLACEHOLDER);
+            String clean = raw.replace(",", "").replaceAll("[^0-9.kK]", "").toLowerCase();
+            double val = Double.parseDouble(clean.replace("k", ""));
+            if (clean.contains("k")) val *= 1000;
+            return val >= amount;
         } catch (Exception e) { return false; }
     }
 }
